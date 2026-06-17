@@ -75,6 +75,11 @@ struct RemoteControlView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            if let format = session.state?.audioFormat {
+                Label(format, systemImage: "waveform")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.tint)
+            }
         }
     }
 
