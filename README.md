@@ -5,6 +5,11 @@ the lossless FLAC/WAV player. FWPlayerRemote is a universal **iPhone + iPad** ap
 that discovers FWPlayer instances on your local network and drives their playback
 — play/pause, next/previous, seek, and tap-to-play any track in the queue.
 
+You can also **build the player's queue from the remote**: tap ＋ to browse the
+player's sources (on-device folder, added folders, SMB shares) and playlists,
+then play a folder/playlist as a new queue or add individual tracks to the
+current one.
+
 It covers both of the intended scenarios with a single app:
 
 - **Control the Mac's FWPlayer** from an iPhone or iPad.
@@ -21,9 +26,11 @@ FWPlayerRemote browses for that service, connects, and exchanges
 length‑prefixed JSON messages:
 
 - **Player → Remote:** a `PlaybackState` snapshot (queue, current track, play
-  state, elapsed/duration) pushed on every change.
-- **Remote → Player:** `RemoteCommand` transport messages (`togglePlayPause`,
-  `next`, `previous`, `seek`, `playIndex`, …).
+  state, elapsed/duration) pushed on every change, plus `RemoteLibrary` and
+  `RemoteListing` replies when the remote browses.
+- **Remote → Player:** `RemoteCommand` messages — transport (`togglePlayPause`,
+  `next`, `previous`, `seek`, `playIndex`) and queue construction
+  (`requestLibrary`, `browse`, `setQueue`, `enqueue`).
 
 The wire types live in `Sources/Protocol/RemoteProtocol.swift` and the framing
 in `Sources/Protocol/RemoteLink.swift`. **These two files are identical to the

@@ -16,6 +16,11 @@ final class RemoteSession: ObservableObject {
 
     @Published private(set) var status: Status = .disconnected
     @Published private(set) var state: PlaybackState?
+    /// The player's browsable library (sources + playlists), once requested.
+    @Published private(set) var library: RemoteLibrary?
+    /// Folder listings received so far, keyed by source+path. Lets each browse
+    /// screen show its own folder while we navigate a stack.
+    @Published private(set) var listings: [String: RemoteListing] = [:]
     /// The player we are connected to (its advertised name).
     let playerName: String
 
@@ -56,7 +61,8 @@ final class RemoteSession: ObservableObject {
         }
         link.onMessage = { [weak self] message in
             guard let self else { return }
-            if case .state(let state) = message {
+            switch message {
+            case .state(let state):
                 if self.isScrubbing {
                     // Keep everything but the live playhead while scrubbing.
                     var merged = state
@@ -65,6 +71,12 @@ final class RemoteSession: ObservableObject {
                 } else {
                     self.state = state
                 }
+            case .library(let library):
+                self.library = library
+            case .listing(let listing):
+                self.listings[Self.key(listing.sourceID, listing.path)] = listing
+            case .command:
+                break
             }
         }
         self.link = link
@@ -92,6 +104,21 @@ final class RemoteSession: ObservableObject {
     func previous() { send(.previous) }
     func seek(to time: TimeInterval) { send(.seek(time: time)) }
     func play(index: Int) { send(.playIndex(index: index)) }
+
+    // MARK: - Library & queue construction
+
+    func requestLibrary() { send(.requestLibrary) }
+    func browse(sourceID: String, path: String) { send(.browse(sourceID: sourceID, path: path)) }
+    func setQueue(_ tracks: [RemoteQueueTrack], startAt: Int) { send(.setQueue(tracks: tracks, startAt: startAt)) }
+    func enqueue(_ tracks: [RemoteQueueTrack]) { send(.enqueue(tracks: tracks)) }
+
+    func listing(sourceID: String, path: String) -> RemoteListing? {
+        listings[Self.key(sourceID, path)]
+    }
+
+    static func key(_ sourceID: String, _ path: String) -> String {
+        sourceID + "\n" + path
+    }
 
     // MARK: - Derived view helpers
 

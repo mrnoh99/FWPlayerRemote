@@ -7,6 +7,7 @@ struct RemoteControlView: View {
     @StateObject private var session: RemoteSession
     /// Local mirror of the scrubber position while the user is dragging.
     @State private var scrubTime: TimeInterval = 0
+    @State private var showingBrowser = false
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
@@ -25,6 +26,22 @@ struct RemoteControlView: View {
         }
         .navigationTitle(session.playerName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if session.status == .connected {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingBrowser = true
+                    } label: {
+                        Label("Add Music", systemImage: "plus.circle")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingBrowser) {
+            NavigationStack {
+                LibraryView(session: session) { showingBrowser = false }
+            }
+        }
         .onAppear { session.connect() }
         .onDisappear { session.disconnect() }
     }
@@ -141,7 +158,7 @@ struct RemoteControlView: View {
                 }
                 .listStyle(.plain)
             } else {
-                Text("The player's queue is empty. Start something from FWPlayer.")
+                Text("The player's queue is empty. Tap ＋ to browse the player's library and build a queue.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
