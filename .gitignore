@@ -1,0 +1,20 @@
+# Generated Xcode project (run `xcodegen generate`)
+*.xcodeproj
+*.xcworkspace
+
+# Generated Info.plist (created by xcodegen from project.yml)
+Support/Info.plist
+
+# Xcode user data / build
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
+# macOS
+.DS_Store

@@ -1,0 +1,62 @@
+name: FWPlayerRemote
+options:
+  bundleIdPrefix: com.fwplayer
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  FWPlayerRemote:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources
+    entitlements:
+      path: Support/FWPlayerRemote.entitlements
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: FWPlayer Remote
+        UILaunchScreen: {}
+        # Discover and connect to FWPlayer instances on the local network.
+        NSLocalNetworkUsageDescription: "FWPlayer Remote finds FWPlayer on your Mac, iPad, or iPhone on the local network so you can control playback."
+        NSBonjourServices:
+          - _fwplayer._tcp
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.fwplayer.remote
+        PRODUCT_NAME: FWPlayerRemote
+        # iPhone + iPad. The same universal app controls a Mac's FWPlayer or an
+        # iPad's FWPlayer interchangeably (it just connects to whichever player it
+        # finds on the network).
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_PREVIEWS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+schemes:
+  FWPlayerRemote:
+    build:
+      targets:
+        FWPlayerRemote: all
+    run:
+      config: Debug
