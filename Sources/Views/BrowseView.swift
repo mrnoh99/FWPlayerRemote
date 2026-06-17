@@ -88,7 +88,7 @@ struct FolderBrowseView: View {
                 if let error = listing.error {
                     ContentUnavailableView("Couldn't Load Folder", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else if listing.items.isEmpty {
-                    ContentUnavailableView("Empty Folder", systemImage: "folder", description: Text("No folders or FLAC/WAV files here."))
+                    ContentUnavailableView("Empty Folder", systemImage: "folder", description: Text("No folders or playable audio files here."))
                 } else {
                     folderList(listing)
                 }
