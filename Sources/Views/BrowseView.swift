@@ -1,54 +1,54 @@
 import SwiftUI
 
-/// Root of the "add music" sheet: lists the player's sources to browse and its
-/// playlists to queue directly. Picking music here rebuilds the player's queue
-/// over the network.
+/// Root of the library browser: lists the player's sources (local folders, SMB
+/// shares) and playlists. Picking music rebuilds the player's queue over the network.
 struct LibraryView: View {
     @ObservedObject var session: RemoteSession
-    /// Closes the whole browsing sheet (used after a selection rebuilds the queue).
-    let dismissSheet: () -> Void
+    var onDidStartPlayback: (() -> Void)?
 
     var body: some View {
         Group {
             if let library = session.library {
                 List {
-                    Section("Sources") {
-                        if library.sources.isEmpty {
-                            Text("No sources on the player.")
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(library.sources) { source in
-                            NavigationLink {
-                                FolderBrowseView(
-                                    session: session,
-                                    sourceID: source.id,
-                                    path: "",
-                                    title: source.displayName,
-                                    dismissSheet: dismissSheet
-                                )
-                            } label: {
-                                Label(source.displayName, systemImage: source.symbolName)
+                    if !library.sources.isEmpty {
+                        Section("Sources") {
+                            ForEach(library.sources) { source in
+                                NavigationLink {
+                                    FolderBrowseView(
+                                        session: session,
+                                        sourceID: source.id,
+                                        path: "",
+                                        title: source.displayName,
+                                        onDidStartPlayback: onDidStartPlayback
+                                    )
+                                } label: {
+                                    Label(source.displayName, systemImage: source.symbolName)
+                                }
                             }
                         }
                     }
 
-                    if !library.playlists.isEmpty {
-                        Section("Playlists") {
-                            ForEach(library.playlists) { playlist in
-                                Button {
-                                    session.setQueue(playlist.tracks, startAt: 0)
-                                    dismissSheet()
-                                } label: {
-                                    HStack {
-                                        Label(playlist.name, systemImage: "music.note.list")
-                                        Spacer()
-                                        Text("\(playlist.tracks.count)")
-                                            .foregroundStyle(.secondary)
-                                    }
+                    Section("Playlists") {
+                        if library.playlists.isEmpty {
+                            Text("No playlists on the player.")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(library.playlists) { playlist in
+                            NavigationLink {
+                                PlaylistBrowseView(
+                                    session: session,
+                                    playlist: playlist,
+                                    onDidStartPlayback: onDidStartPlayback
+                                )
+                            } label: {
+                                HStack {
+                                    Label(playlist.name, systemImage: "music.note.list")
+                                    Spacer()
+                                    Text("\(playlist.tracks.count)")
+                                        .foregroundStyle(.secondary)
                                 }
-                                .tint(.primary)
-                                .disabled(playlist.tracks.isEmpty)
                             }
+                            .disabled(playlist.tracks.isEmpty)
                         }
                     }
                 }
@@ -57,30 +57,74 @@ struct LibraryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle("Add Music")
+        .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismissSheet() }
-            }
-        }
         .onAppear { session.requestLibrary() }
         .refreshable { session.requestLibrary() }
     }
 }
 
-/// Browses one folder within a source. Tapping a sub-folder pushes another
-/// browser; tapping a track replaces the player's queue with this folder's audio
-/// (starting at that track); swiping a track appends it to the queue.
+/// Shows one playlist's tracks; tap a track or use Play All to queue on the player.
+struct PlaylistBrowseView: View {
+    @ObservedObject var session: RemoteSession
+    let playlist: RemotePlaylist
+    var onDidStartPlayback: (() -> Void)?
+
+    var body: some View {
+        List {
+            ForEach(Array(playlist.tracks.enumerated()), id: \.offset) { index, track in
+                Button {
+                    session.setQueue(playlist.tracks, startAt: index, playlistID: playlist.id)
+                    onDidStartPlayback?()
+                } label: {
+                    HStack {
+                        Text("\(index + 1)")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24, alignment: .trailing)
+                        Text(track.title)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                }
+                .tint(.primary)
+            }
+        }
+        .navigationTitle(playlist.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    session.setQueue(playlist.tracks, startAt: 0, playlistID: playlist.id)
+                    onDidStartPlayback?()
+                } label: {
+                    Label("Play All", systemImage: "play.fill")
+                }
+                .disabled(playlist.tracks.isEmpty)
+            }
+        }
+    }
+}
+
+/// Browses one folder within a source. Sub-folders can be opened or played
+/// recursively; audio files start playback from the current folder queue.
 struct FolderBrowseView: View {
     @ObservedObject var session: RemoteSession
+    @Environment(\.dismiss) private var dismiss
     let sourceID: String
     let path: String
     let title: String
-    let dismissSheet: () -> Void
+    var onDidStartPlayback: (() -> Void)?
 
     private var listing: RemoteListing? { session.listing(sourceID: sourceID, path: path) }
     private var audioItems: [RemoteFileItem] { listing?.items.filter { $0.kind == .audio } ?? [] }
+    private var canGoToParent: Bool { !path.isEmpty }
+    private var parentPath: String { (path as NSString).deletingLastPathComponent }
+    private var parentFolderLabel: String {
+        if parentPath.isEmpty {
+            return session.library?.sources.first(where: { $0.id == sourceID })?.displayName ?? "Source"
+        }
+        return (parentPath as NSString).lastPathComponent
+    }
 
     var body: some View {
         Group {
@@ -88,7 +132,11 @@ struct FolderBrowseView: View {
                 if let error = listing.error {
                     ContentUnavailableView("Couldn't Load Folder", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else if listing.items.isEmpty {
-                    ContentUnavailableView("Empty Folder", systemImage: "folder", description: Text("No folders or playable audio files here."))
+                    if canGoToParent {
+                        parentOnlyList
+                    } else {
+                        ContentUnavailableView("Empty Folder", systemImage: "folder", description: Text("No folders or playable audio files here."))
+                    }
                 } else {
                     folderList(listing)
                 }
@@ -100,11 +148,27 @@ struct FolderBrowseView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if canGoToParent {
+                ToolbarItem(placement: .navigation) {
+                    Button { dismiss() } label: {
+                        Label("Parent Folder", systemImage: "chevron.left")
+                    }
+                }
+            }
             if !audioItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         session.setQueue(queueTracks(from: audioItems), startAt: 0)
-                        dismissSheet()
+                        onDidStartPlayback?()
+                    } label: {
+                        Label("Play Folder", systemImage: "play.fill")
+                    }
+                }
+            } else if path.isEmpty || listing?.items.contains(where: { $0.kind == .directory }) == true {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        session.playFolder(sourceID: sourceID, path: path, recursive: true)
+                        onDidStartPlayback?()
                     } label: {
                         Label("Play All", systemImage: "play.fill")
                     }
@@ -115,8 +179,24 @@ struct FolderBrowseView: View {
         .refreshable { session.browse(sourceID: sourceID, path: path) }
     }
 
+    private var parentOnlyList: some View {
+        List {
+            parentRow
+        }
+    }
+
+    private var parentRow: some View {
+        Button { dismiss() } label: {
+            Label(parentFolderLabel, systemImage: "arrow.turn.up.left")
+        }
+        .tint(.primary)
+    }
+
     private func folderList(_ listing: RemoteListing) -> some View {
         List {
+            if canGoToParent {
+                parentRow
+            }
             ForEach(listing.items) { item in
                 switch item.kind {
                 case .directory:
@@ -126,18 +206,26 @@ struct FolderBrowseView: View {
                             sourceID: sourceID,
                             path: item.path,
                             title: item.name,
-                            dismissSheet: dismissSheet
+                            onDidStartPlayback: onDidStartPlayback
                         )
                     } label: {
                         Label(item.name, systemImage: "folder")
+                    }
+                    .contextMenu {
+                        Button {
+                            session.playFolder(sourceID: sourceID, path: item.path, recursive: true)
+                            onDidStartPlayback?()
+                        } label: {
+                            Label("Play Folder", systemImage: "play.fill")
+                        }
                     }
                 case .audio:
                     Button {
                         playFolder(startingAt: item)
                     } label: {
                         Label(trackTitle(item), systemImage: "music.note")
-                            .tint(.primary)
                     }
+                    .tint(.primary)
                     .swipeActions(edge: .trailing) {
                         Button {
                             session.enqueue([queueTrack(from: item)])
@@ -156,7 +244,7 @@ struct FolderBrowseView: View {
     private func playFolder(startingAt item: RemoteFileItem) {
         guard let index = audioItems.firstIndex(of: item) else { return }
         session.setQueue(queueTracks(from: audioItems), startAt: index)
-        dismissSheet()
+        onDidStartPlayback?()
     }
 
     private func queueTracks(from items: [RemoteFileItem]) -> [RemoteQueueTrack] {

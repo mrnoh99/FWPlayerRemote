@@ -5,6 +5,7 @@ import SwiftUI
 /// control.
 struct DeviceListView: View {
     @EnvironmentObject private var browser: RemoteBrowser
+    @EnvironmentObject private var sessionStore: RemoteSessionStore
 
     var body: some View {
         NavigationStack {
@@ -22,12 +23,13 @@ struct DeviceListView: View {
     private var deviceList: some View {
         List(browser.players) { player in
             NavigationLink {
-                RemoteControlView(session: RemoteSession(player: player))
+                RemoteControlView(session: sessionStore.session(for: player))
             } label: {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(player.name).font(.body.weight(.medium))
-                        Text("Tap to control").font(.caption).foregroundStyle(.secondary)
+                        Text(PairedPINStore.isPaired(player.id) ? "Tap to control" : "Tap to connect with PIN")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 } icon: {
                     Image(systemName: "hifispeaker.fill")

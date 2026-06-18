@@ -1,115 +1,166 @@
 import SwiftUI
 
-/// The remote control surface for a single FWPlayer: now-playing info, a seek
-/// bar, transport buttons, and the live queue. Sends commands over the network
-/// and reflects the state pushed back by the player.
+/// The remote control surface for a single FWPlayer: now-playing info, transport
+/// buttons, and the live queue. Sends commands over the network and reflects the
+/// state pushed back by the player.
 struct RemoteControlView: View {
     @StateObject private var session: RemoteSession
-    /// Local mirror of the scrubber position while the user is dragging.
-    @State private var scrubTime: TimeInterval = 0
-    @State private var showingBrowser = false
+    @State private var selectedTab = 0
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             switch session.status {
-            case .connecting:
-                Spacer(); ProgressView("Connecting…"); Spacer()
+            case .connecting, .authenticating:
+                ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Connecting…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .awaitingPIN where session.needsPINEntry:
+                pinEntry
+            case .awaitingPIN:
+                ProgressView("Connecting…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let message):
-                Spacer(); failure(message); Spacer()
-            default:
-                content
+                failure(message)
+            case .connected:
+                connectedTabs
+            case .disconnected:
+                ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Disconnected")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { session.connectIfNeeded() }
             }
         }
         .navigationTitle(session.playerName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if session.status == .connected {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingBrowser = true
-                    } label: {
-                        Label("Add Music", systemImage: "plus.circle")
-                    }
-                }
-            }
+        .onAppear { session.connectIfNeeded() }
+        .onChange(of: session.status) { _, new in
+            if new == .connected { pin = "" }
         }
-        .sheet(isPresented: $showingBrowser) {
-            NavigationStack {
-                LibraryView(session: session) { showingBrowser = false }
-            }
-        }
-        .onAppear { session.connect() }
-        .onDisappear { session.disconnect() }
     }
 
-    // MARK: - Connected content
+    private var connectedTabs: some View {
+        TabView(selection: $selectedTab) {
+            nowPlayingTab
+                .tabItem { Label("Now Playing", systemImage: "play.circle") }
+                .tag(0)
 
-    private var content: some View {
-        VStack(spacing: 24) {
+            NavigationStack {
+                LibraryView(session: session) {
+                    selectedTab = 0
+                }
+            }
+            .tabItem { Label("Library", systemImage: "music.note.list") }
+            .tag(1)
+        }
+    }
+
+    private var nowPlayingTab: some View {
+        VStack(spacing: 8) {
             nowPlaying
-            seekBar
-            transportControls
-            Divider()
             queue
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            progressBar
+            transportControls
         }
         .padding()
     }
 
-    private var nowPlaying: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "music.note")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
-                .frame(maxWidth: .infinity, minHeight: 140)
-                .background(Color.secondary.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+    // MARK: - PIN pairing
 
+    @State private var pin = ""
+    @FocusState private var pinFocused: Bool
+
+    private var pinEntry: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "lock.rectangle")
+                .font(.system(size: 48))
+                .foregroundStyle(.tint)
+
+            Text("Enter PIN")
+                .font(.title2.weight(.semibold))
+            Text("Enter the 6-digit PIN shown on \(session.playerName).")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            TextField("000000", text: $pin)
+                .keyboardType(.numberPad)
+                .textContentType(.oneTimeCode)
+                .multilineTextAlignment(.center)
+                .font(.title.monospacedDigit())
+                .focused($pinFocused)
+                .onChange(of: pin) { _, new in
+                    let digits = new.filter(\.isNumber)
+                    pin = String(digits.prefix(6))
+                }
+
+            if let authError = session.authError {
+                Text(authError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Button {
+                session.authenticate(with: pin)
+            } label: {
+                if session.status == .authenticating {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Text("Connect")
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(pin.count != 6 || session.status == .authenticating)
+        }
+        .padding(.horizontal, 32)
+        .onAppear { pinFocused = true }
+    }
+
+    // MARK: - Connected content
+
+    private var nowPlaying: some View {
+        VStack(spacing: 4) {
             Text(session.currentTrack?.title ?? "Nothing Playing")
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
+
+            if let format = session.state?.audioFormat {
+                Label(format, systemImage: "waveform")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.tint)
+            }
+
             Text(session.currentTrack?.artist ?? session.currentTrack?.album ?? " ")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if let format = session.state?.audioFormat {
-                Label(format, systemImage: "waveform")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.tint)
-            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 4)
     }
 
-    private var seekBar: some View {
-        VStack(spacing: 4) {
-            Slider(
-                value: Binding(
-                    get: { session.isScrubbing ? scrubTime : session.currentTime },
-                    set: { scrubTime = $0 }
-                ),
-                in: 0...max(session.duration, 0.1),
-                onEditingChanged: { editing in
-                    if editing {
-                        scrubTime = session.currentTime
-                        session.isScrubbing = true
-                    } else {
-                        session.isScrubbing = false
-                        session.seek(to: scrubTime)
-                    }
-                }
-            )
-            .disabled(session.duration <= 0)
+    private var progressBar: some View {
+        TimelineView(.animation(minimumInterval: 0.25, paused: !session.isPlaying)) { timeline in
+            let duration = max(session.effectiveDuration, 0.1)
+            let current = session.interpolatedTime(at: timeline.date)
+            let progress = min(max(0, current / duration), 1)
 
-            HStack {
-                Text(Self.timeString(session.isScrubbing ? scrubTime : session.currentTime))
-                Spacer()
-                Text(Self.timeString(session.duration))
+            VStack(spacing: 4) {
+                ProgressView(value: progress)
+                    .progressViewStyle(.linear)
+
+                HStack {
+                    Text(Self.timeString(current))
+                    Spacer()
+                    Text(Self.timeString(session.effectiveDuration))
+                }
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
             }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
         }
     }
 
@@ -138,32 +189,41 @@ struct RemoteControlView: View {
                         Button {
                             session.play(index: index)
                         } label: {
-                            HStack {
-                                if index == state.currentIndex {
-                                    Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
-                                        .foregroundStyle(.tint)
-                                        .frame(width: 20)
-                                } else {
-                                    Text("\(index + 1)")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(track.title).lineLimit(1)
-                                    if let artist = track.artist {
-                                        Text(artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            HStack(spacing: 6) {
+                                Group {
+                                    if index == state.currentIndex {
+                                        Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                                            .foregroundStyle(.tint)
+                                    } else {
+                                        Text("\(index + 1)")
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
-                                Spacer()
+                                .font(.caption)
+                                .frame(width: 20, alignment: .center)
+
+                                Text(track.title)
+                                    .font(.subheadline)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .contentShape(Rectangle())
                         }
                         .tint(.primary)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                session.removeFromQueue(at: index)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .listStyle(.plain)
             } else {
-                Text("The player's queue is empty. Tap ＋ to browse the player's library and build a queue.")
+                Text("The queue is empty. Open the Library tab to browse playlists, folders, or SMB shares on the player.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -178,12 +238,12 @@ struct RemoteControlView: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Try Again") { session.connect() }
+            Button("Try Again") {
+                session.connect()
+            }
                 .buttonStyle(.borderedProminent)
         }
     }
-
-    // MARK: - Helpers
 
     static func timeString(_ time: TimeInterval) -> String {
         guard time.isFinite, time >= 0 else { return "0:00" }

@@ -7,12 +7,18 @@ import Foundation
 // controller app. It is intentionally self-contained and IDENTICAL in both the
 // FWPlayer and FWPlayerRemote projects so the two sides stay in sync. If you
 // change it here, copy the same change to the other repository.
+//
+// v2 pairing flow:
+// 1. Player → Remote: `pairingRequired` (device name) immediately after TCP connect.
+// 2. Remote → Player: `authenticate(pin:)` with the PIN shown on the player.
+// 3. Player → Remote: `authResult` then `state` (PlaybackState) on success.
+// 4. All other commands are rejected until step 3 succeeds.
 
 /// Bonjour service type advertised by FWPlayer and browsed for by the remote.
 let fwRemoteServiceType = "_fwplayer._tcp"
 
 /// A protocol version so the two sides can detect a mismatch.
-let fwRemoteProtocolVersion = 1
+let fwRemoteProtocolVersion = 2
 
 /// A track as exposed to the remote. A trimmed-down, transport-friendly mirror
 /// of the player's internal `Track`.
@@ -38,6 +44,18 @@ struct PlaybackState: Codable, Hashable {
     var errorMessage: String?
     /// Current output format, e.g. "96 kHz · 24-bit · Stereo".
     var audioFormat: String?
+}
+
+/// Sent immediately after TCP connect; the remote must authenticate with the
+/// PIN shown on the player before any other command is accepted.
+struct PairingRequired: Codable, Hashable {
+    var deviceName: String
+}
+
+/// Result of a PIN authentication attempt.
+struct AuthResult: Codable, Hashable {
+    var success: Bool
+    var message: String?
 }
 
 /// A minimal description of a track the remote wants to enqueue. Carries exactly
@@ -93,6 +111,8 @@ struct RemoteListing: Codable, Hashable {
 
 /// A command sent from the remote to the player.
 enum RemoteCommand: Codable, Hashable {
+    /// Must be sent first with the PIN shown on the player screen.
+    case authenticate(pin: String)
     // Transport.
     case requestState
     case togglePlayPause
@@ -107,15 +127,21 @@ enum RemoteCommand: Codable, Hashable {
     case requestLibrary
     case browse(sourceID: String, path: String)
     /// Replace the queue with `tracks` and start playing at `startAt`.
-    case setQueue(tracks: [RemoteQueueTrack], startAt: Int)
+    case setQueue(tracks: [RemoteQueueTrack], startAt: Int, playlistID: String? = nil)
     /// Append `tracks` to the end of the current queue.
     case enqueue(tracks: [RemoteQueueTrack])
+    /// Remove tracks at the given zero-based indices from the current queue.
+    case removeFromQueue(at: [Int])
+    /// Play every audio file under a folder, optionally including subfolders.
+    case playFolder(sourceID: String, path: String, recursive: Bool)
 }
 
 /// The envelope exchanged over the wire. Commands flow remote → player; state,
 /// library, and folder listings flow player → remote.
 enum RemoteMessage: Codable {
     case command(RemoteCommand)
+    case pairingRequired(PairingRequired)
+    case authResult(AuthResult)
     case state(PlaybackState)
     case library(RemoteLibrary)
     case listing(RemoteListing)
