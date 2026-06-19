@@ -73,20 +73,33 @@ struct PlaylistBrowseView: View {
     var body: some View {
         List {
             ForEach(Array(playlist.tracks.enumerated()), id: \.offset) { index, track in
-                Button {
-                    session.setQueue(playlist.tracks, startAt: index, playlistID: playlist.id)
-                    onDidStartPlayback?()
-                } label: {
-                    HStack {
-                        Text("\(index + 1)")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, alignment: .trailing)
-                        Text(track.title)
-                            .lineLimit(1)
-                        Spacer()
+                HStack(spacing: 8) {
+                    Button {
+                        session.playNext([track])
+                        onDidStartPlayback?()
+                    } label: {
+                        HStack {
+                            Text("\(index + 1)")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, alignment: .trailing)
+                            Text(track.title)
+                                .lineLimit(1)
+                            Spacer()
+                        }
                     }
+                    .tint(.primary)
+
+                    Menu {
+                        trackActions(track, at: index)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
                 }
-                .tint(.primary)
             }
         }
         .navigationTitle(playlist.name)
@@ -100,6 +113,47 @@ struct PlaylistBrowseView: View {
                     Label("Play All", systemImage: "play.fill")
                 }
                 .disabled(playlist.tracks.isEmpty)
+            }
+        }
+    }
+
+    /// Per-track actions inside a playlist: mirrors the player's playlist menu
+    /// (Play Now / Play from Here / Play Next / Add to Queue / Add to Playlist).
+    @ViewBuilder
+    private func trackActions(_ track: RemoteQueueTrack, at index: Int) -> some View {
+        Button {
+            session.setQueue([track], startAt: 0)
+            onDidStartPlayback?()
+        } label: {
+            Label("Play Now", systemImage: "play.fill")
+        }
+        Button {
+            session.setQueue(playlist.tracks, startAt: index, playlistID: playlist.id)
+            onDidStartPlayback?()
+        } label: {
+            Label("Play from Here", systemImage: "play.circle")
+        }
+        Button {
+            session.playNext([track])
+        } label: {
+            Label("Play Next", systemImage: "text.insert")
+        }
+        Button {
+            session.enqueue([track])
+        } label: {
+            Label("Add to Queue", systemImage: "text.badge.plus")
+        }
+        if let playlists = session.library?.playlists, !playlists.isEmpty {
+            Menu {
+                ForEach(playlists) { other in
+                    Button {
+                        session.addToPlaylist(other.id, tracks: [track])
+                    } label: {
+                        Text(other.name)
+                    }
+                }
+            } label: {
+                Label("Add to Playlist", systemImage: "music.note.list")
             }
         }
     }
@@ -220,32 +274,83 @@ struct FolderBrowseView: View {
                         }
                     }
                 case .audio:
-                    Button {
-                        playFolder(startingAt: item)
-                    } label: {
-                        Label(trackTitle(item), systemImage: "music.note")
-                    }
-                    .tint(.primary)
-                    .swipeActions(edge: .trailing) {
-                        Button {
-                            session.enqueue([queueTrack(from: item)])
-                        } label: {
-                            Label("Add to Queue", systemImage: "text.badge.plus")
-                        }
-                        .tint(.accentColor)
-                    }
+                    audioRow(item)
                 }
             }
         }
     }
 
-    // MARK: - Helpers
+    /// A single audio file: tapping plays it next; the ••• menu mirrors the
+    /// player's per-file operations (Play Now / Play Next / Add to Queue /
+    /// Add to Playlist).
+    private func audioRow(_ item: RemoteFileItem) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                session.playNext([queueTrack(from: item)])
+                onDidStartPlayback?()
+            } label: {
+                Label(trackTitle(item), systemImage: "music.note")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tint(.primary)
 
-    private func playFolder(startingAt item: RemoteFileItem) {
-        guard let index = audioItems.firstIndex(of: item) else { return }
-        session.setQueue(queueTracks(from: audioItems), startAt: index)
-        onDidStartPlayback?()
+            Menu {
+                trackActions(item)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+        }
+        .swipeActions(edge: .trailing) {
+            Button {
+                session.enqueue([queueTrack(from: item)])
+            } label: {
+                Label("Add to Queue", systemImage: "text.badge.plus")
+            }
+            .tint(.accentColor)
+        }
     }
+
+    /// The shared per-file action menu used by the ••• button.
+    @ViewBuilder
+    private func trackActions(_ item: RemoteFileItem) -> some View {
+        let track = queueTrack(from: item)
+        Button {
+            session.setQueue([track], startAt: 0)
+            onDidStartPlayback?()
+        } label: {
+            Label("Play Now", systemImage: "play.fill")
+        }
+        Button {
+            session.playNext([track])
+        } label: {
+            Label("Play Next", systemImage: "text.insert")
+        }
+        Button {
+            session.enqueue([track])
+        } label: {
+            Label("Add to Queue", systemImage: "text.badge.plus")
+        }
+        if let playlists = session.library?.playlists, !playlists.isEmpty {
+            Menu {
+                ForEach(playlists) { playlist in
+                    Button {
+                        session.addToPlaylist(playlist.id, tracks: [track])
+                    } label: {
+                        Text(playlist.name)
+                    }
+                }
+            } label: {
+                Label("Add to Playlist", systemImage: "music.note.list")
+            }
+        }
+    }
+
+    // MARK: - Helpers
 
     private func queueTracks(from items: [RemoteFileItem]) -> [RemoteQueueTrack] {
         items.map(queueTrack(from:))

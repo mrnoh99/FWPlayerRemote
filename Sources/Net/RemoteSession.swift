@@ -215,6 +215,10 @@ final class RemoteSession: ObservableObject {
         send(.setQueue(tracks: tracks, startAt: startAt, playlistID: playlistID))
     }
     func enqueue(_ tracks: [RemoteQueueTrack]) { send(.enqueue(tracks: tracks)) }
+    func playNext(_ tracks: [RemoteQueueTrack]) { send(.playNext(tracks: tracks)) }
+    func addToPlaylist(_ playlistID: String, tracks: [RemoteQueueTrack]) {
+        send(.addToPlaylist(playlistID: playlistID, tracks: tracks))
+    }
     func removeFromQueue(at index: Int) { send(.removeFromQueue(at: [index])) }
     func removeFromQueue(at offsets: IndexSet) {
         send(.removeFromQueue(at: offsets.sorted()))
