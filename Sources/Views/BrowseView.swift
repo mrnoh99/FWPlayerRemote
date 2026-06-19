@@ -1,10 +1,23 @@
 import SwiftUI
 
+/// A folder location pushed onto the library's navigation stack. Hashable so the
+/// stack can be driven (and restored) programmatically — e.g. by "Locate File".
+struct RemoteFolderRoute: Hashable {
+    let sourceID: String
+    let path: String
+    let title: String
+}
+
+/// A destination within the Library tab's value-based navigation stack.
+enum LibraryRoute: Hashable {
+    case folder(RemoteFolderRoute)
+    case playlist(RemotePlaylist)
+}
+
 /// Root of the library browser: lists the player's sources (local folders, SMB
 /// shares) and playlists. Picking music rebuilds the player's queue over the network.
 struct LibraryView: View {
     @ObservedObject var session: RemoteSession
-    var onDidStartPlayback: (() -> Void)?
 
     var body: some View {
         Group {
@@ -13,15 +26,9 @@ struct LibraryView: View {
                     if !library.sources.isEmpty {
                         Section("Sources") {
                             ForEach(library.sources) { source in
-                                NavigationLink {
-                                    FolderBrowseView(
-                                        session: session,
-                                        sourceID: source.id,
-                                        path: "",
-                                        title: source.displayName,
-                                        onDidStartPlayback: onDidStartPlayback
-                                    )
-                                } label: {
+                                NavigationLink(value: LibraryRoute.folder(
+                                    RemoteFolderRoute(sourceID: source.id, path: "", title: source.displayName)
+                                )) {
                                     Label(source.displayName, systemImage: source.symbolName)
                                 }
                             }
@@ -34,13 +41,7 @@ struct LibraryView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(library.playlists) { playlist in
-                            NavigationLink {
-                                PlaylistBrowseView(
-                                    session: session,
-                                    playlist: playlist,
-                                    onDidStartPlayback: onDidStartPlayback
-                                )
-                            } label: {
+                            NavigationLink(value: LibraryRoute.playlist(playlist)) {
                                 HStack {
                                     Label(playlist.name, systemImage: "music.note.list")
                                     Spacer()
@@ -69,6 +70,8 @@ struct PlaylistBrowseView: View {
     @ObservedObject var session: RemoteSession
     let playlist: RemotePlaylist
     var onDidStartPlayback: (() -> Void)?
+    /// Reveals the track's file in the Library (jumps to its containing folder).
+    var onLocate: ((RemoteQueueTrack) -> Void)?
 
     var body: some View {
         List {
@@ -156,6 +159,13 @@ struct PlaylistBrowseView: View {
                 Label("Add to Playlist", systemImage: "music.note.list")
             }
         }
+        if let onLocate {
+            Button {
+                onLocate(track)
+            } label: {
+                Label("Locate File", systemImage: "folder")
+            }
+        }
     }
 }
 
@@ -168,6 +178,9 @@ struct FolderBrowseView: View {
     let path: String
     let title: String
     var onDidStartPlayback: (() -> Void)?
+    /// When this folder contains it, the file at this path is highlighted and
+    /// scrolled into view (set by "Locate File").
+    var focusFilePath: String?
 
     private var listing: RemoteListing? { session.listing(sourceID: sourceID, path: path) }
     private var audioItems: [RemoteFileItem] { listing?.items.filter { $0.kind == .audio } ?? [] }
@@ -247,37 +260,46 @@ struct FolderBrowseView: View {
     }
 
     private func folderList(_ listing: RemoteListing) -> some View {
-        List {
-            if canGoToParent {
-                parentRow
-            }
-            ForEach(listing.items) { item in
-                switch item.kind {
-                case .directory:
-                    NavigationLink {
-                        FolderBrowseView(
-                            session: session,
-                            sourceID: sourceID,
-                            path: item.path,
-                            title: item.name,
-                            onDidStartPlayback: onDidStartPlayback
-                        )
-                    } label: {
-                        Label(item.name, systemImage: "folder")
-                    }
-                    .contextMenu {
-                        Button {
-                            session.playFolder(sourceID: sourceID, path: item.path, recursive: true)
-                            onDidStartPlayback?()
-                        } label: {
-                            Label("Play Folder", systemImage: "play.fill")
+        ScrollViewReader { proxy in
+            List {
+                if canGoToParent {
+                    parentRow
+                }
+                ForEach(listing.items) { item in
+                    switch item.kind {
+                    case .directory:
+                        NavigationLink(value: LibraryRoute.folder(
+                            RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name)
+                        )) {
+                            Label(item.name, systemImage: "folder")
                         }
+                        .contextMenu {
+                            Button {
+                                session.playFolder(sourceID: sourceID, path: item.path, recursive: true)
+                                onDidStartPlayback?()
+                            } label: {
+                                Label("Play Folder", systemImage: "play.fill")
+                            }
+                        }
+                        .id(item.path)
+                    case .audio:
+                        audioRow(item)
+                            .id(item.path)
                     }
-                case .audio:
-                    audioRow(item)
                 }
             }
+            .onAppear { scrollToFocus(using: proxy) }
+            .onChange(of: listing.items.count) { scrollToFocus(using: proxy) }
         }
+    }
+
+    /// Scrolls to (and the row highlights) the "Locate File" target, if it lives
+    /// in this folder.
+    private func scrollToFocus(using proxy: ScrollViewProxy) {
+        guard let focusFilePath,
+              (focusFilePath as NSString).deletingLastPathComponent == path,
+              listing?.items.contains(where: { $0.path == focusFilePath }) == true else { return }
+        withAnimation { proxy.scrollTo(focusFilePath, anchor: .center) }
     }
 
     /// A single audio file: tapping plays it next; the ••• menu mirrors the
@@ -305,6 +327,7 @@ struct FolderBrowseView: View {
             }
             .buttonStyle(.borderless)
         }
+        .listRowBackground(item.path == focusFilePath ? Color.accentColor.opacity(0.15) : nil)
         .swipeActions(edge: .trailing) {
             Button {
                 session.enqueue([queueTrack(from: item)])

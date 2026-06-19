@@ -6,6 +6,11 @@ import SwiftUI
 struct RemoteControlView: View {
     @StateObject private var session: RemoteSession
     @State private var selectedTab = 0
+    /// The Library tab's navigation stack, owned here so "Locate File" can drive
+    /// it from the queue or a playlist.
+    @State private var libraryPath: [LibraryRoute] = []
+    /// The file a "Locate File" action is revealing (highlighted in its folder).
+    @State private var locateFilePath: String?
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
@@ -46,14 +51,66 @@ struct RemoteControlView: View {
                 .tabItem { Label("Now Playing", systemImage: "play.circle") }
                 .tag(0)
 
-            NavigationStack {
-                LibraryView(session: session) {
-                    selectedTab = 0
-                }
+            NavigationStack(path: $libraryPath) {
+                LibraryView(session: session)
+                    .navigationDestination(for: LibraryRoute.self) { route in
+                        switch route {
+                        case .folder(let folder):
+                            FolderBrowseView(
+                                session: session,
+                                sourceID: folder.sourceID,
+                                path: folder.path,
+                                title: folder.title,
+                                onDidStartPlayback: { selectedTab = 0 },
+                                focusFilePath: locateFilePath
+                            )
+                        case .playlist(let playlist):
+                            PlaylistBrowseView(
+                                session: session,
+                                playlist: playlist,
+                                onDidStartPlayback: { selectedTab = 0 },
+                                onLocate: { locate($0) }
+                            )
+                        }
+                    }
             }
             .tabItem { Label("Library", systemImage: "music.note.list") }
             .tag(1)
         }
+    }
+
+    // MARK: - Locate File
+
+    /// Switches to the Library tab and opens the folder containing `track`,
+    /// scrolling to (and highlighting) the file.
+    private func locate(sourceID: String, path: String) {
+        libraryPath = folderRoutes(sourceID: sourceID, path: path)
+        locateFilePath = path
+        selectedTab = 1
+    }
+
+    private func locate(_ track: RemoteTrack) {
+        guard let sourceID = track.sourceID, let path = track.path else { return }
+        locate(sourceID: sourceID, path: path)
+    }
+
+    private func locate(_ track: RemoteQueueTrack) {
+        locate(sourceID: track.sourceID, path: track.path)
+    }
+
+    /// Builds the navigation chain down to the folder that holds `path`, starting
+    /// at the source root so the back button walks back up naturally.
+    private func folderRoutes(sourceID: String, path: String) -> [LibraryRoute] {
+        let sourceName = session.library?.sources.first { $0.id == sourceID }?.displayName ?? "Source"
+        var routes: [LibraryRoute] = [.folder(RemoteFolderRoute(sourceID: sourceID, path: "", title: sourceName))]
+        let folder = (path as NSString).deletingLastPathComponent
+        guard !folder.isEmpty else { return routes }
+        var accumulated = ""
+        for component in folder.split(separator: "/").map(String.init) {
+            accumulated = accumulated.isEmpty ? component : accumulated + "/" + component
+            routes.append(.folder(RemoteFolderRoute(sourceID: sourceID, path: accumulated, title: component)))
+        }
+        return routes
     }
 
     private var nowPlayingTab: some View {
@@ -186,31 +243,54 @@ struct RemoteControlView: View {
             if let state = session.state, !state.queue.isEmpty {
                 List {
                     ForEach(Array(state.queue.enumerated()), id: \.element.id) { index, track in
-                        Button {
-                            session.play(index: index)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Group {
-                                    if index == state.currentIndex {
-                                        Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
-                                            .foregroundStyle(.tint)
-                                    } else {
-                                        Text("\(index + 1)")
-                                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Button {
+                                session.play(index: index)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Group {
+                                        if index == state.currentIndex {
+                                            Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                                                .foregroundStyle(.tint)
+                                        } else {
+                                            Text("\(index + 1)")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .font(.caption)
+                                    .frame(width: 20, alignment: .center)
+
+                                    Text(track.title)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .tint(.primary)
+
+                            Menu {
+                                if track.sourceID != nil {
+                                    Button {
+                                        locate(track)
+                                    } label: {
+                                        Label("Locate File", systemImage: "folder")
                                     }
                                 }
-                                .font(.caption)
-                                .frame(width: 20, alignment: .center)
-
-                                Text(track.title)
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Button(role: .destructive) {
+                                    session.removeFromQueue(at: index)
+                                } label: {
+                                    Label("Remove from Queue", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 28, height: 28)
+                                    .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.borderless)
                         }
-                        .tint(.primary)
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
