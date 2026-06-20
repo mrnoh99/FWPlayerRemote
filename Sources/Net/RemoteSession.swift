@@ -48,6 +48,10 @@ final class RemoteSession: ObservableObject {
     private var reconnectTask: Task<Void, Never>?
     private var reconnectDelay: TimeInterval = 1
     private var isBackgrounded = false
+    /// When we last received any message; if the link goes silent past the
+    /// server's keepalive interval it's dead, so we reconnect.
+    private var lastMessageDate = Date()
+    private var staleMonitorTask: Task<Void, Never>?
 
     init(player: DiscoveredPlayer) {
         self.playerID = player.id
@@ -69,13 +73,24 @@ final class RemoteSession: ObservableObject {
         }
     }
 
+    /// TCP options with keepalive so the OS probes the peer and fails a dead
+    /// link instead of leaving it half-open.
+    private static var tcpParameters: NWParameters {
+        let tcp = NWProtocolTCP.Options()
+        tcp.enableKeepalive = true
+        tcp.keepaliveIdle = 4
+        tcp.keepaliveInterval = 2
+        tcp.keepaliveCount = 3
+        return NWParameters(tls: nil, tcp: tcp)
+    }
+
     func connect() {
         teardown()
         resetCachedData()
         status = .connecting
         authError = nil
         needsPINEntry = false
-        let connection = NWConnection(to: endpoint, using: .tcp)
+        let connection = NWConnection(to: endpoint, using: Self.tcpParameters)
         let link = RemoteLink(connection: connection)
         link.onStateChange = { [weak self] state in
             guard let self else { return }
@@ -116,7 +131,28 @@ final class RemoteSession: ObservableObject {
             self?.handle(message)
         }
         self.link = link
+        lastMessageDate = Date()
         link.start()
+        startStaleMonitor()
+    }
+
+    /// Watches for a silent link. The server sends a keepalive every ~2s, so if
+    /// nothing arrives for a while the inbound half is dead even though sends may
+    /// still "work" — reconnect to recover (commands change the player but the
+    /// state echo never comes back otherwise).
+    private func startStaleMonitor() {
+        staleMonitorTask?.cancel()
+        staleMonitorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                guard self.status == .connected, !self.isBackgrounded else { continue }
+                if Date().timeIntervalSince(self.lastMessageDate) > 5 {
+                    self.reconnect()
+                    return
+                }
+            }
+        }
     }
 
     /// Force a fresh connection now (used by "Try Again" and on foreground).
@@ -202,11 +238,14 @@ final class RemoteSession: ObservableObject {
     }
 
     private func teardown() {
+        staleMonitorTask?.cancel()
+        staleMonitorTask = nil
         link?.cancel()
         link = nil
     }
 
     private func handle(_ message: RemoteMessage) {
+        lastMessageDate = Date()
         switch message {
         case .pairingRequired(let pairing):
             playerName = pairing.deviceName
