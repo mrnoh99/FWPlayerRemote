@@ -1,6 +1,9 @@
 import Foundation
 import Network
 import Combine
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// A live connection to one FWPlayer instance. Holds the latest `PlaybackState`
 /// pushed by the player and sends transport commands back. Drives the
@@ -25,6 +28,8 @@ final class RemoteSession: ObservableObject {
     /// Folder listings received so far, keyed by source+path. Lets each browse
     /// screen show its own folder while we navigate a stack.
     @Published private(set) var listings: [String: RemoteListing] = [:]
+    /// Album covers pushed by the player, keyed by track id.
+    @Published private(set) var artworkByTrack: [String: UIImage] = [:]
     /// The player we are connected to (its advertised name).
     @Published private(set) var playerName: String
     /// Stable Bonjour identity used to cache the verified PIN.
@@ -116,8 +121,15 @@ final class RemoteSession: ObservableObject {
         state = nil
         library = nil
         listings = [:]
+        artworkByTrack = [:]
         isScrubbing = false
         playbackAnchorDate = nil
+    }
+
+    /// The cover for the current track, if the player has pushed it.
+    var currentArtwork: UIImage? {
+        guard let id = currentTrack?.id else { return nil }
+        return artworkByTrack[id]
     }
 
     private func teardown() {
@@ -170,6 +182,12 @@ final class RemoteSession: ObservableObject {
         case .listing(let listing):
             guard status == .connected else { return }
             listings[Self.key(listing.sourceID, listing.path)] = listing
+        case .artwork(let art):
+            guard status == .connected,
+                  let data = Data(base64Encoded: art.jpegBase64),
+                  let image = UIImage(data: data) else { return }
+            if artworkByTrack.count > 16 { artworkByTrack.removeAll() }
+            artworkByTrack[art.trackID] = image
         case .command:
             break
         }
