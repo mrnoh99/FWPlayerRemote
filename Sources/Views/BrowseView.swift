@@ -472,25 +472,6 @@ struct FolderBrowseView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .toolbar {
-            if !audioItems.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        session.setQueue(queueTracks(from: audioItems), startAt: 0)
-                    } label: {
-                        Label("Play Folder", systemImage: "play.fill")
-                    }
-                }
-            } else if path.isEmpty || listing?.items.contains(where: { $0.kind == .directory }) == true {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        session.playFolder(sourceID: sourceID, path: path, recursive: true)
-                    } label: {
-                        Label("Play All", systemImage: "play.fill")
-                    }
-                }
-            }
-        }
         .task(id: path) {
             // Retry a few times: if a browse request or its reply is dropped the
             // folder would otherwise stay stuck on "Loading…".
@@ -531,13 +512,6 @@ struct FolderBrowseView: View {
                             Label(item.name, systemImage: "folder")
                         }
                         .tint(.primary)
-                        .contextMenu {
-                            Button {
-                                session.playFolder(sourceID: sourceID, path: item.path, recursive: true)
-                            } label: {
-                                Label("Play Folder", systemImage: "play.fill")
-                            }
-                        }
                         .id(item.path)
                     case .audio:
                         audioRow(item)
@@ -604,6 +578,13 @@ struct FolderBrowseView: View {
             session.setQueue([track], startAt: 0)
         } label: {
             Label("Play Now", systemImage: "play.fill")
+        }
+        if let index = audioItems.firstIndex(where: { $0.path == item.path }) {
+            Button {
+                session.setQueue(queueTracks(from: audioItems), startAt: index)
+            } label: {
+                Label("Play from Here", systemImage: "play.circle")
+            }
         }
         Button {
             session.playNext([track])
