@@ -317,6 +317,8 @@ struct PlaylistBrowseView: View {
     /// Reveals the track's file in the Library (jumps to its containing folder).
     var onLocate: ((RemoteQueueTrack) -> Void)?
 
+    @State private var editMode: EditMode = .inactive
+
     /// The navigation route carries a snapshot of the playlist; resolve the live
     /// copy from the session so reorders (and other edits) reflect immediately
     /// once the player re-broadcasts the library.
@@ -364,14 +366,34 @@ struct PlaylistBrowseView: View {
                     .buttonStyle(.borderless)
                 }
                 .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        session.removePlaylistEntry(playlistID: playlist.id, at: IndexSet(integer: index))
+                    } label: {
+                        Label("Remove", systemImage: "trash")
+                    }
+                }
+            }
+            .onMove { offsets, destination in
+                session.movePlaylistEntry(playlistID: playlist.id, from: offsets, to: destination)
+            }
+            .onDelete { offsets in
+                session.removePlaylistEntry(playlistID: playlist.id, at: offsets)
             }
         }
+        .environment(\.editMode, $editMode)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     session.setQueue(playlist.tracks, startAt: 0, playlistID: playlist.id)
                 } label: {
                     Label("Play All", systemImage: "play.fill")
+                }
+                .disabled(playlist.tracks.isEmpty)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(editMode.isEditing ? "Done" : "Edit") {
+                    withAnimation { editMode = editMode.isEditing ? .inactive : .active }
                 }
                 .disabled(playlist.tracks.isEmpty)
             }
@@ -424,6 +446,12 @@ struct PlaylistBrowseView: View {
             } label: {
                 Label("Locate File", systemImage: "folder")
             }
+        }
+        Divider()
+        Button(role: .destructive) {
+            session.removePlaylistEntry(playlistID: playlist.id, at: IndexSet(integer: index))
+        } label: {
+            Label("Remove from Playlist", systemImage: "trash")
         }
     }
 }

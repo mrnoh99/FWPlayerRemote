@@ -267,6 +267,9 @@ final class RemoteSession: ObservableObject {
     func movePlaylistEntry(playlistID: String, from offsets: IndexSet, to destination: Int) {
         send(.movePlaylistEntry(playlistID: playlistID, from: offsets.sorted(), to: destination))
     }
+    func removePlaylistEntry(playlistID: String, at offsets: IndexSet) {
+        send(.removePlaylistEntry(playlistID: playlistID, at: offsets.sorted()))
+    }
 
     /// True when the track at `sourceID`/`path` is the one currently loaded in the
     /// player, so lists can shade it and show a speaker icon wherever it appears.
