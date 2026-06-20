@@ -228,6 +228,18 @@ final class RemoteSession: ObservableObject {
     var isShuffled: Bool { state?.isShuffled ?? false }
     /// Repeat mode: 0 = off, 1 = all, 2 = one.
     var repeatMode: Int { state?.repeatMode ?? 0 }
+    /// Recently played tracks, most recent first.
+    var history: [RemoteTrack] { state?.history ?? [] }
+
+    // MARK: - Favorites
+
+    func toggleFavorite(_ track: RemoteQueueTrack) { send(.toggleFavorite(track: track)) }
+
+    /// Whether the track is in the player's Favorites playlist (from the library).
+    func isFavorite(_ track: RemoteQueueTrack) -> Bool {
+        guard let favorites = library?.playlists.first(where: { $0.id == fwFavoritesPlaylistID }) else { return false }
+        return favorites.tracks.contains { $0.sourceID == track.sourceID && $0.path == track.path }
+    }
 
     // MARK: - Library & queue construction
 

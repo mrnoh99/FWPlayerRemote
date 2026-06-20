@@ -11,12 +11,14 @@ struct RemoteFolderRoute: Hashable {
 /// A destination within the Library tab's value-based navigation stack.
 enum LibraryRoute: Hashable {
     case queue
+    case history
     case folder(RemoteFolderRoute)
     case playlist(RemotePlaylist)
 
     var screenTitle: String {
         switch self {
         case .queue: "Queue"
+        case .history: "History"
         case .folder(let folder): folder.title
         case .playlist(let playlist): playlist.name
         }
@@ -42,6 +44,19 @@ struct LibraryView: View {
                                 Spacer()
                                 if let count = session.state?.queue.count, count > 0 {
                                     Text("\(count)").foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .tint(.primary)
+
+                        Button {
+                            onOpen(.history)
+                        } label: {
+                            HStack {
+                                Label("History", systemImage: "clock.arrow.circlepath")
+                                Spacer()
+                                if !session.history.isEmpty {
+                                    Text("\(session.history.count)").foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -109,6 +124,9 @@ struct QueueBrowseView: View {
                 List {
                     ForEach(Array(state.queue.enumerated()), id: \.element.id) { index, track in
                         HStack(spacing: 8) {
+                            if let qt = queueTrack(track) {
+                                FavoriteStarButton(session: session, track: qt)
+                            }
                             Button {
                                 session.play(index: index)
                             } label: {
@@ -197,6 +215,74 @@ struct QueueBrowseView: View {
     }
 }
 
+/// Recently played tracks, reachable from the Library tab. Tap to play next; the
+/// ••• menu offers Play Now / Add to Favorites / Add to Playlist / Locate File.
+struct HistoryBrowseView: View {
+    @ObservedObject var session: RemoteSession
+    var onLocate: ((RemoteTrack) -> Void)?
+
+    var body: some View {
+        Group {
+            if !session.history.isEmpty {
+                List {
+                    ForEach(Array(session.history.enumerated()), id: \.offset) { _, track in
+                        HStack(spacing: 8) {
+                            if let qt = queueTrack(track) {
+                                FavoriteStarButton(session: session, track: qt)
+                            }
+                            Button {
+                                if let qt = queueTrack(track) { session.playNext([qt]) }
+                            } label: {
+                                Label(track.title, systemImage: "music.note")
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .tint(.primary)
+
+                            if let qt = queueTrack(track) {
+                                Menu {
+                                    Button { session.setQueue([qt], startAt: 0) } label: {
+                                        Label("Play Now", systemImage: "play.fill")
+                                    }
+                                    Button { session.playNext([qt]) } label: {
+                                        Label("Play Next", systemImage: "text.insert")
+                                    }
+                                    Button { session.enqueue([qt]) } label: {
+                                        Label("Add to Queue", systemImage: "text.badge.plus")
+                                    }
+                                    AddToFavoritesButton(session: session, track: qt)
+                                    AddToPlaylistMenu(session: session, track: qt)
+                                    if let onLocate {
+                                        Button { onLocate(track) } label: {
+                                            Label("Locate File", systemImage: "folder")
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 36, height: 40)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView("No History", systemImage: "clock.arrow.circlepath",
+                                       description: Text("Tracks you play will appear here."))
+            }
+        }
+        .navigationTitle("History")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func queueTrack(_ track: RemoteTrack) -> RemoteQueueTrack? {
+        guard let sourceID = track.sourceID, let path = track.path else { return nil }
+        return RemoteQueueTrack(sourceID: sourceID, path: path, title: track.title)
+    }
+}
+
 /// Shows one playlist's tracks; tap a track or use Play All to queue on the player.
 struct PlaylistBrowseView: View {
     @ObservedObject var session: RemoteSession
@@ -208,6 +294,8 @@ struct PlaylistBrowseView: View {
         List {
             ForEach(Array(playlist.tracks.enumerated()), id: \.offset) { index, track in
                 HStack(spacing: 8) {
+                    FavoriteStarButton(session: session, track: track)
+
                     Button {
                         session.playNext([track])
                     } label: {
@@ -290,13 +378,32 @@ struct AddToFavoritesButton: View {
     let track: RemoteQueueTrack
 
     var body: some View {
-        if let favorites = session.library?.playlists.first(where: { $0.id == fwFavoritesPlaylistID }) {
-            Button {
-                session.addToPlaylist(favorites.id, tracks: [track])
-            } label: {
-                Label("Add to Favorites", systemImage: "star.fill")
-            }
+        Button {
+            session.toggleFavorite(track)
+        } label: {
+            Label(session.isFavorite(track) ? "Remove from Favorites" : "Add to Favorites",
+                  systemImage: session.isFavorite(track) ? "star.slash" : "star")
         }
+    }
+}
+
+/// A leading yellow star that toggles a track's Favorites membership.
+struct FavoriteStarButton: View {
+    @ObservedObject var session: RemoteSession
+    let track: RemoteQueueTrack
+
+    var body: some View {
+        Button {
+            session.toggleFavorite(track)
+        } label: {
+            Image(systemName: session.isFavorite(track) ? "star.fill" : "star")
+                .foregroundStyle(session.isFavorite(track) ? Color.yellow : Color.secondary)
+                .font(.footnote)
+                .frame(width: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(session.isFavorite(track) ? "Remove from Favorites" : "Add to Favorites")
     }
 }
 
@@ -457,6 +564,8 @@ struct FolderBrowseView: View {
     /// Add to Playlist).
     private func audioRow(_ item: RemoteFileItem) -> some View {
         HStack(spacing: 8) {
+            FavoriteStarButton(session: session, track: queueTrack(from: item))
+
             Button {
                 session.playNext([queueTrack(from: item)])
             } label: {

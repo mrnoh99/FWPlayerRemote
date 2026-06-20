@@ -146,6 +146,8 @@ struct RemoteControlView: View {
         switch route {
         case .queue:
             QueueBrowseView(session: session, onLocate: { locate($0) })
+        case .history:
+            HistoryBrowseView(session: session, onLocate: { locate($0) })
         case .folder(let folder):
             FolderBrowseView(
                 session: session,
@@ -285,22 +287,7 @@ struct RemoteControlView: View {
     // MARK: - Connected content
 
     private var nowPlaying: some View {
-        VStack(spacing: 10) {
-            Group {
-                if let cover = session.currentArtwork {
-                    Image(uiImage: cover).resizable().scaledToFill()
-                } else {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 52))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.secondary.opacity(0.12))
-                }
-            }
-            .frame(width: 200, height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
-
+        VStack(spacing: 4) {
             Text(session.currentTrack?.title ?? "Nothing Playing")
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
@@ -374,6 +361,9 @@ struct RemoteControlView: View {
                 List {
                     ForEach(Array(state.queue.enumerated()), id: \.element.id) { index, track in
                         HStack(spacing: 6) {
+                            if let qt = queueTrack(from: track) {
+                                FavoriteStarButton(session: session, track: qt)
+                            }
                             Button {
                                 session.play(index: index)
                             } label: {
