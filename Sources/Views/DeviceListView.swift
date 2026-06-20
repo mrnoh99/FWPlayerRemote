@@ -17,6 +17,13 @@ struct DeviceListView: View {
                 }
             }
             .navigationTitle("FWPlayer Remote")
+            .safeAreaInset(edge: .bottom) {
+                Text("Developed by JaiSung NOH MD 2026")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 6)
+            }
         }
     }
 
