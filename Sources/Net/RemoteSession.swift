@@ -248,6 +248,10 @@ final class RemoteSession: ObservableObject {
     func removeFromQueue(at offsets: IndexSet) {
         send(.removeFromQueue(at: offsets.sorted()))
     }
+    func clearQueue() { send(.clearQueue) }
+    func moveQueue(from offsets: IndexSet, to destination: Int) {
+        send(.moveQueue(from: offsets.sorted(), to: destination))
+    }
     func playFolder(sourceID: String, path: String, recursive: Bool = true) {
         send(.playFolder(sourceID: sourceID, path: path, recursive: recursive))
     }

@@ -144,6 +144,8 @@ struct RemoteControlView: View {
     @ViewBuilder
     private func libraryDestination(for route: LibraryRoute) -> some View {
         switch route {
+        case .queue:
+            QueueBrowseView(session: session, onLocate: { locate($0) })
         case .folder(let folder):
             FolderBrowseView(
                 session: session,
