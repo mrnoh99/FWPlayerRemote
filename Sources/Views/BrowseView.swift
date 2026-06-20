@@ -12,12 +12,20 @@ struct RemoteFolderRoute: Hashable {
 enum LibraryRoute: Hashable {
     case folder(RemoteFolderRoute)
     case playlist(RemotePlaylist)
+
+    var screenTitle: String {
+        switch self {
+        case .folder(let folder): folder.title
+        case .playlist(let playlist): playlist.name
+        }
+    }
 }
 
 /// Root of the library browser: lists the player's sources (local folders, SMB
 /// shares) and playlists. Picking music rebuilds the player's queue over the network.
 struct LibraryView: View {
     @ObservedObject var session: RemoteSession
+    var onOpen: (LibraryRoute) -> Void
 
     var body: some View {
         Group {
@@ -26,11 +34,14 @@ struct LibraryView: View {
                     if !library.sources.isEmpty {
                         Section("Sources") {
                             ForEach(library.sources) { source in
-                                NavigationLink(value: LibraryRoute.folder(
-                                    RemoteFolderRoute(sourceID: source.id, path: "", title: source.displayName)
-                                )) {
+                                Button {
+                                    onOpen(.folder(
+                                        RemoteFolderRoute(sourceID: source.id, path: "", title: source.displayName)
+                                    ))
+                                } label: {
                                     Label(source.displayName, systemImage: source.symbolName)
                                 }
+                                .tint(.primary)
                             }
                         }
                     }
@@ -41,7 +52,9 @@ struct LibraryView: View {
                                 .foregroundStyle(.secondary)
                         }
                         ForEach(library.playlists) { playlist in
-                            NavigationLink(value: LibraryRoute.playlist(playlist)) {
+                            Button {
+                                onOpen(.playlist(playlist))
+                            } label: {
                                 HStack {
                                     Label(playlist.name, systemImage: "music.note.list")
                                     Spacer()
@@ -49,6 +62,7 @@ struct LibraryView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                            .tint(.primary)
                             .disabled(playlist.tracks.isEmpty)
                         }
                     }
@@ -58,8 +72,6 @@ struct LibraryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle("Library")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear { session.requestLibrary() }
         .refreshable { session.requestLibrary() }
     }
@@ -69,7 +81,6 @@ struct LibraryView: View {
 struct PlaylistBrowseView: View {
     @ObservedObject var session: RemoteSession
     let playlist: RemotePlaylist
-    var onDidStartPlayback: (() -> Void)?
     /// Reveals the track's file in the Library (jumps to its containing folder).
     var onLocate: ((RemoteQueueTrack) -> Void)?
 
@@ -79,7 +90,6 @@ struct PlaylistBrowseView: View {
                 HStack(spacing: 8) {
                     Button {
                         session.playNext([track])
-                        onDidStartPlayback?()
                     } label: {
                         HStack {
                             Text("\(index + 1)")
@@ -105,13 +115,10 @@ struct PlaylistBrowseView: View {
                 }
             }
         }
-        .navigationTitle(playlist.name)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     session.setQueue(playlist.tracks, startAt: 0, playlistID: playlist.id)
-                    onDidStartPlayback?()
                 } label: {
                     Label("Play All", systemImage: "play.fill")
                 }
@@ -126,13 +133,11 @@ struct PlaylistBrowseView: View {
     private func trackActions(_ track: RemoteQueueTrack, at index: Int) -> some View {
         Button {
             session.setQueue([track], startAt: 0)
-            onDidStartPlayback?()
         } label: {
             Label("Play Now", systemImage: "play.fill")
         }
         Button {
             session.setQueue(playlist.tracks, startAt: index, playlistID: playlist.id)
-            onDidStartPlayback?()
         } label: {
             Label("Play from Here", systemImage: "play.circle")
         }
@@ -201,11 +206,11 @@ struct AddToPlaylistMenu: View {
 /// recursively; audio files start playback from the current folder queue.
 struct FolderBrowseView: View {
     @ObservedObject var session: RemoteSession
-    @Environment(\.dismiss) private var dismiss
     let sourceID: String
     let path: String
     let title: String
-    var onDidStartPlayback: (() -> Void)?
+    var onOpenFolder: (RemoteFolderRoute) -> Void
+    var onGoBack: () -> Void
     /// When this folder contains it, the file at this path is highlighted and
     /// scrolled into view (set by "Locate File").
     var focusFilePath: String?
@@ -240,21 +245,11 @@ struct FolderBrowseView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if canGoToParent {
-                ToolbarItem(placement: .navigation) {
-                    Button { dismiss() } label: {
-                        Label("Parent Folder", systemImage: "chevron.left")
-                    }
-                }
-            }
             if !audioItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         session.setQueue(queueTracks(from: audioItems), startAt: 0)
-                        onDidStartPlayback?()
                     } label: {
                         Label("Play Folder", systemImage: "play.fill")
                     }
@@ -263,7 +258,6 @@ struct FolderBrowseView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         session.playFolder(sourceID: sourceID, path: path, recursive: true)
-                        onDidStartPlayback?()
                     } label: {
                         Label("Play All", systemImage: "play.fill")
                     }
@@ -281,7 +275,7 @@ struct FolderBrowseView: View {
     }
 
     private var parentRow: some View {
-        Button { dismiss() } label: {
+        Button(action: onGoBack) {
             Label(parentFolderLabel, systemImage: "arrow.turn.up.left")
         }
         .tint(.primary)
@@ -296,15 +290,15 @@ struct FolderBrowseView: View {
                 ForEach(listing.items) { item in
                     switch item.kind {
                     case .directory:
-                        NavigationLink(value: LibraryRoute.folder(
-                            RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name)
-                        )) {
+                        Button {
+                            onOpenFolder(RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name))
+                        } label: {
                             Label(item.name, systemImage: "folder")
                         }
+                        .tint(.primary)
                         .contextMenu {
                             Button {
                                 session.playFolder(sourceID: sourceID, path: item.path, recursive: true)
-                                onDidStartPlayback?()
                             } label: {
                                 Label("Play Folder", systemImage: "play.fill")
                             }
@@ -337,7 +331,6 @@ struct FolderBrowseView: View {
         HStack(spacing: 8) {
             Button {
                 session.playNext([queueTrack(from: item)])
-                onDidStartPlayback?()
             } label: {
                 Label(trackTitle(item), systemImage: "music.note")
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -372,7 +365,6 @@ struct FolderBrowseView: View {
         let track = queueTrack(from: item)
         Button {
             session.setQueue([track], startAt: 0)
-            onDidStartPlayback?()
         } label: {
             Label("Play Now", systemImage: "play.fill")
         }

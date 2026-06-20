@@ -16,66 +16,150 @@ struct RemoteControlView: View {
         _session = StateObject(wrappedValue: session)
     }
 
+    /// Bottom space reserved for the floating panel (content + home indicator).
+    private static let floatingPanelInset: CGFloat = 76
+
     var body: some View {
-        Group {
-            switch session.status {
-            case .connecting, .authenticating:
-                ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Connecting…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .awaitingPIN where session.needsPINEntry:
-                pinEntry
-            case .awaitingPIN:
-                ProgressView("Connecting…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .failed(let message):
-                failure(message)
-            case .connected:
-                connectedTabs
-            case .disconnected:
-                ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Disconnected")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onAppear { session.connectIfNeeded() }
+        remoteMainContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.bottom, Self.floatingPanelInset)
+            .overlay(alignment: .bottom) {
+                floatingPanelBar
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
             }
+            .navigationTitle(screenTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(selectedTab == 1 && !libraryPath.isEmpty)
+            .toolbar {
+                if selectedTab == 1, !libraryPath.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: popLibrary) {
+                            Image(systemName: "chevron.left")
+                        }
+                    }
+                }
+            }
+            .onAppear { session.connectIfNeeded() }
+            .onChange(of: session.status) { _, new in
+                if new == .connected { pin = "" }
+            }
+            .onChange(of: libraryPath) { _, _ in
+                clearLocateFocusIfNeeded()
+            }
+    }
+
+    private var screenTitle: String {
+        guard selectedTab == 1 else { return session.playerName }
+        guard let route = libraryPath.last else { return "Library" }
+        return route.screenTitle
+    }
+
+    private var floatingPanelBar: some View {
+        FloatingRemotePanel(selectedTab: $selectedTab)
+            .frame(maxWidth: .infinity)
+            // Keep the panel fixed — don't slide with library navigation pushes.
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+    }
+
+    private var remoteMainContent: some View {
+        ZStack {
+            nowPlayingScreen
+                .opacity(selectedTab == 0 ? 1 : 0)
+                .allowsHitTesting(selectedTab == 0)
+                .accessibilityHidden(selectedTab != 0)
+
+            libraryScreen
+                .opacity(selectedTab == 1 ? 1 : 0)
+                .allowsHitTesting(selectedTab == 1)
+                .accessibilityHidden(selectedTab != 1)
         }
-        .navigationTitle(session.playerName)
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { session.connectIfNeeded() }
-        .onChange(of: session.status) { _, new in
-            if new == .connected { pin = "" }
+        .clipped()
+    }
+
+    @ViewBuilder
+    private var nowPlayingScreen: some View {
+        switch session.status {
+        case .connecting, .authenticating:
+            ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Connecting…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .awaitingPIN where session.needsPINEntry:
+            pinEntry
+        case .awaitingPIN:
+            ProgressView("Connecting…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .failed(let message):
+            failure(message)
+        case .connected:
+            nowPlayingTab
+        case .disconnected:
+            ProgressView(session.hasSavedPIN ? "Reconnecting…" : "Disconnected")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear { session.connectIfNeeded() }
         }
     }
 
-    private var connectedTabs: some View {
-        TabView(selection: $selectedTab) {
-            nowPlayingTab
-                .tabItem { Label("Now Playing", systemImage: "play.circle") }
-                .tag(0)
+    @ViewBuilder
+    private var libraryScreen: some View {
+        ZStack {
+            libraryNavigationStack
 
-            NavigationStack(path: $libraryPath) {
-                LibraryView(session: session)
-                    .navigationDestination(for: LibraryRoute.self) { route in
-                        switch route {
-                        case .folder(let folder):
-                            FolderBrowseView(
-                                session: session,
-                                sourceID: folder.sourceID,
-                                path: folder.path,
-                                title: folder.title,
-                                onDidStartPlayback: { selectedTab = 0 },
-                                focusFilePath: locateFilePath
-                            )
-                        case .playlist(let playlist):
-                            PlaylistBrowseView(
-                                session: session,
-                                playlist: playlist,
-                                onDidStartPlayback: { selectedTab = 0 },
-                                onLocate: { locate($0) }
-                            )
-                        }
-                    }
+            if session.status != .connected {
+                ContentUnavailableView {
+                    Label("Not Connected", systemImage: "wifi")
+                } description: {
+                    Text("Connect to \(session.playerName) to browse its library.")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.background)
             }
-            .tabItem { Label("Library", systemImage: "music.note.list") }
-            .tag(1)
+        }
+    }
+
+    /// Library browser driven by `libraryPath` (no NavigationStack push — keeps the
+    /// floating panel fixed while browsing folders and playlists).
+    private var libraryNavigationStack: some View {
+        Group {
+            if let route = libraryPath.last {
+                libraryDestination(for: route)
+            } else {
+                LibraryView(session: session, onOpen: openLibraryRoute)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(nil, value: libraryPath.count)
+    }
+
+    private func openLibraryRoute(_ route: LibraryRoute) {
+        libraryPath.append(route)
+    }
+
+    private func popLibrary() {
+        guard !libraryPath.isEmpty else { return }
+        libraryPath.removeLast()
+    }
+
+    @ViewBuilder
+    private func libraryDestination(for route: LibraryRoute) -> some View {
+        switch route {
+        case .folder(let folder):
+            FolderBrowseView(
+                session: session,
+                sourceID: folder.sourceID,
+                path: folder.path,
+                title: folder.title,
+                onOpenFolder: { openLibraryRoute(.folder($0)) },
+                onGoBack: popLibrary,
+                focusFilePath: locateFilePath
+            )
+        case .playlist(let playlist):
+            PlaylistBrowseView(
+                session: session,
+                playlist: playlist,
+                onLocate: { locate($0) }
+            )
         }
     }
 
@@ -96,6 +180,19 @@ struct RemoteControlView: View {
 
     private func locate(_ track: RemoteQueueTrack) {
         locate(sourceID: track.sourceID, path: track.path)
+    }
+
+    /// Drops the "Locate File" highlight once the user leaves the target folder.
+    private func clearLocateFocusIfNeeded() {
+        guard let focusedPath = locateFilePath else { return }
+        let targetFolder = (focusedPath as NSString).deletingLastPathComponent
+        let visibleFolderPaths = libraryPath.compactMap { route -> String? in
+            guard case .folder(let folder) = route else { return nil }
+            return folder.path
+        }
+        if !visibleFolderPaths.contains(targetFolder) {
+            locateFilePath = nil
+        }
     }
 
     /// Rebuilds a queueable track from a queue entry, if it carries its origin.
