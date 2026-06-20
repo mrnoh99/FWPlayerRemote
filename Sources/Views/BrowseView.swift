@@ -463,7 +463,7 @@ struct AddToFavoritesButton: View {
     let track: RemoteQueueTrack
 
     var body: some View {
-        Button {
+        Button(role: session.isFavorite(track) ? .destructive : nil) {
             session.toggleFavorite(track)
         } label: {
             Label(session.isFavorite(track) ? "Remove from Favorites" : "Add to Favorites",
