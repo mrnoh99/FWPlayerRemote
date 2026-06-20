@@ -98,6 +98,12 @@ struct RemoteControlView: View {
         locate(sourceID: track.sourceID, path: track.path)
     }
 
+    /// Rebuilds a queueable track from a queue entry, if it carries its origin.
+    private func queueTrack(from track: RemoteTrack) -> RemoteQueueTrack? {
+        guard let sourceID = track.sourceID, let path = track.path else { return nil }
+        return RemoteQueueTrack(sourceID: sourceID, path: path, title: track.title)
+    }
+
     /// Builds the navigation chain down to the folder that holds `path`, starting
     /// at the source root so the back button walks back up naturally.
     private func folderRoutes(sourceID: String, path: String) -> [LibraryRoute] {
@@ -277,6 +283,10 @@ struct RemoteControlView: View {
                                     } label: {
                                         Label("Locate File", systemImage: "folder")
                                     }
+                                }
+                                if let queueTrack = queueTrack(from: track) {
+                                    AddToFavoritesButton(session: session, track: queueTrack)
+                                    AddToPlaylistMenu(session: session, track: queueTrack)
                                 }
                                 Button(role: .destructive) {
                                     session.removeFromQueue(at: index)

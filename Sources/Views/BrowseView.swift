@@ -146,24 +146,52 @@ struct PlaylistBrowseView: View {
         } label: {
             Label("Add to Queue", systemImage: "text.badge.plus")
         }
-        if let playlists = session.library?.playlists, !playlists.isEmpty {
-            Menu {
-                ForEach(playlists) { other in
-                    Button {
-                        session.addToPlaylist(other.id, tracks: [track])
-                    } label: {
-                        Text(other.name)
-                    }
-                }
-            } label: {
-                Label("Add to Playlist", systemImage: "music.note.list")
-            }
-        }
+        AddToFavoritesButton(session: session, track: track)
+        AddToPlaylistMenu(session: session, track: track)
         if let onLocate {
             Button {
                 onLocate(track)
             } label: {
                 Label("Locate File", systemImage: "folder")
+            }
+        }
+    }
+}
+
+/// "Add to Favorites" — adds the track to the player's built-in Favorites
+/// playlist. Shown only once the library (and its Favorites playlist) is known.
+struct AddToFavoritesButton: View {
+    @ObservedObject var session: RemoteSession
+    let track: RemoteQueueTrack
+
+    var body: some View {
+        if let favorites = session.library?.playlists.first(where: { $0.id == fwFavoritesPlaylistID }) {
+            Button {
+                session.addToPlaylist(favorites.id, tracks: [track])
+            } label: {
+                Label("Add to Favorites", systemImage: "star.fill")
+            }
+        }
+    }
+}
+
+/// "Add to Playlist ▸" submenu listing every playlist on the player.
+struct AddToPlaylistMenu: View {
+    @ObservedObject var session: RemoteSession
+    let track: RemoteQueueTrack
+
+    var body: some View {
+        if let playlists = session.library?.playlists, !playlists.isEmpty {
+            Menu {
+                ForEach(playlists) { playlist in
+                    Button {
+                        session.addToPlaylist(playlist.id, tracks: [track])
+                    } label: {
+                        Text(playlist.name)
+                    }
+                }
+            } label: {
+                Label("Add to Playlist", systemImage: "music.note.list")
             }
         }
     }
@@ -358,19 +386,8 @@ struct FolderBrowseView: View {
         } label: {
             Label("Add to Queue", systemImage: "text.badge.plus")
         }
-        if let playlists = session.library?.playlists, !playlists.isEmpty {
-            Menu {
-                ForEach(playlists) { playlist in
-                    Button {
-                        session.addToPlaylist(playlist.id, tracks: [track])
-                    } label: {
-                        Text(playlist.name)
-                    }
-                }
-            } label: {
-                Label("Add to Playlist", systemImage: "music.note.list")
-            }
-        }
+        AddToFavoritesButton(session: session, track: track)
+        AddToPlaylistMenu(session: session, track: track)
     }
 
     // MARK: - Helpers
