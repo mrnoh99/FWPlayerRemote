@@ -5,6 +5,7 @@ import SwiftUI
 /// state pushed back by the player.
 struct RemoteControlView: View {
     @StateObject private var session: RemoteSession
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
     /// The Library tab's navigation stack, owned here so "Locate File" can drive
     /// it from the queue or a playlist.
@@ -41,6 +42,13 @@ struct RemoteControlView: View {
                 }
             }
             .onAppear { session.connectIfNeeded() }
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .active: session.appDidBecomeActive()
+                case .background: session.appDidEnterBackground()
+                default: break
+                }
+            }
             .onChange(of: session.status) { _, new in
                 if new == .connected { pin = "" }
             }
@@ -445,7 +453,7 @@ struct RemoteControlView: View {
             Text(message)
         } actions: {
             Button("Try Again") {
-                session.connect()
+                session.reconnect()
             }
                 .buttonStyle(.borderedProminent)
         }

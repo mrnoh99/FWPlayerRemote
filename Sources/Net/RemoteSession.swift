@@ -43,6 +43,12 @@ final class RemoteSession: ObservableObject {
     /// Wall-clock anchor for the last `currentTime` received from the player.
     private var playbackAnchorDate: Date?
 
+    /// Auto-reconnect bookkeeping. iOS aborts the socket (NWError 53) when the
+    /// app is backgrounded, so we retry with backoff and reconnect on foreground.
+    private var reconnectTask: Task<Void, Never>?
+    private var reconnectDelay: TimeInterval = 1
+    private var isBackgrounded = false
+
     init(player: DiscoveredPlayer) {
         self.playerID = player.id
         self.playerName = player.name
@@ -74,11 +80,31 @@ final class RemoteSession: ObservableObject {
         link.onStateChange = { [weak self] state in
             guard let self else { return }
             switch state {
-            case .waiting(let error):
-                self.status = .failed(error.localizedDescription)
+            case .ready:
+                // TCP is up; pairing/auth follows. Clear any pending retry.
+                self.reconnectTask?.cancel()
+                self.reconnectTask = nil
+                self.reconnectDelay = 1
+            case .waiting:
+                // The path isn't ready yet (common right after returning from the
+                // background). Keep showing "Connecting…" and retry rather than
+                // dead-ending at "Can't Connect".
+                if self.hasSavedPIN {
+                    self.status = .connecting
+                    self.scheduleReconnect()
+                } else {
+                    self.status = .failed("Couldn't reach the player.")
+                }
             case .failed(let error):
-                self.status = .failed(error.localizedDescription)
                 self.teardown()
+                // A paired session recovers on its own (the abort on backgrounding
+                // lands here); only surface a hard error when there's no saved PIN.
+                if self.hasSavedPIN {
+                    self.status = .connecting
+                    self.scheduleReconnect()
+                } else {
+                    self.status = .failed(error.localizedDescription)
+                }
             case .cancelled:
                 self.status = .disconnected
                 self.reconnectIfPaired()
@@ -91,6 +117,49 @@ final class RemoteSession: ObservableObject {
         }
         self.link = link
         link.start()
+    }
+
+    /// Force a fresh connection now (used by "Try Again" and on foreground).
+    func reconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnectDelay = 1
+        connect()
+    }
+
+    /// Schedules a single backoff reconnect for a paired player.
+    private func scheduleReconnect() {
+        guard hasSavedPIN, !isBackgrounded, reconnectTask == nil else { return }
+        let delay = reconnectDelay
+        reconnectDelay = min(reconnectDelay * 2, 8)
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            self.reconnectTask = nil
+            guard !self.isBackgrounded, self.status != .connected else { return }
+            self.connect()
+        }
+    }
+
+    /// Call when the app returns to the foreground. The socket is usually torn
+    /// down in the background, so re-establish a fresh connection.
+    func appDidBecomeActive() {
+        isBackgrounded = false
+        if hasSavedPIN {
+            reconnect()
+        } else {
+            connectIfNeeded()
+        }
+    }
+
+    /// Call when the app enters the background: drop the link cleanly so we don't
+    /// keep a half-dead socket (which would let commands through but stop state
+    /// updates). The last state stays on screen until we reconnect.
+    func appDidEnterBackground() {
+        isBackgrounded = true
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        teardown()
     }
 
     func authenticate(with pin: String) {
@@ -292,8 +361,8 @@ final class RemoteSession: ObservableObject {
     }
 
     private func reconnectIfPaired() {
-        guard PairedPINStore.isPaired(playerID), link == nil else { return }
-        connect()
+        guard PairedPINStore.isPaired(playerID), !isBackgrounded, link == nil else { return }
+        scheduleReconnect()
     }
 
     // MARK: - Derived view helpers
