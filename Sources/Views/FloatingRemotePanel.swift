@@ -52,6 +52,7 @@ struct FloatingRemotePanel: View {
 
     private func tabButton(title: String, systemImage: String, tag: Int) -> some View {
         Button {
+            if selectedTab != tag { Haptics.selection() }
             withAnimation(.easeInOut(duration: 0.2)) {
                 selectedTab = tag
             }

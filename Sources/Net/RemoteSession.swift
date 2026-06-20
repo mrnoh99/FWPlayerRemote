@@ -374,6 +374,10 @@ final class RemoteSession: ObservableObject {
 
     var isPlaying: Bool { state?.isPlaying ?? false }
 
+    /// The player is reading/preparing a track — used to show a spinner in place
+    /// of the play/pause button.
+    var isLoading: Bool { state?.isLoading ?? false }
+
     /// Best-known track length — prefers the live player value, then track metadata.
     var effectiveDuration: TimeInterval {
         guard let state else { return 0 }

@@ -592,6 +592,7 @@ struct FolderBrowseView: View {
                     switch item.kind {
                     case .directory:
                         Button {
+                            Haptics.selection()
                             onOpenFolder(RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name))
                         } label: {
                             Label(item.name, systemImage: "folder")
@@ -627,6 +628,7 @@ struct FolderBrowseView: View {
             FavoriteStarButton(session: session, track: queueTrack(from: item))
 
             Button {
+                Haptics.tap()
                 session.playNext([queueTrack(from: item)])
             } label: {
                 HStack(spacing: 8) {

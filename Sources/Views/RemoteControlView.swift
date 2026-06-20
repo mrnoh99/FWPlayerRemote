@@ -338,22 +338,29 @@ struct RemoteControlView: View {
 
     private var transportControls: some View {
         HStack(spacing: 28) {
-            Button { session.toggleShuffle() } label: {
+            Button { Haptics.tap(); session.toggleShuffle() } label: {
                 Image(systemName: "shuffle")
                     .font(.title3)
                     .foregroundStyle(session.isShuffled ? Color.accentColor : Color.secondary)
             }
-            Button { session.previous() } label: {
+            Button { Haptics.tap(); session.previous() } label: {
                 Image(systemName: "backward.fill").font(.title)
             }
-            Button { session.togglePlayPause() } label: {
-                Image(systemName: session.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 64))
+            if session.isLoading {
+                // Preparing the track — show a spinner so the press is visible.
+                ProgressView()
+                    .controlSize(.large)
+                    .frame(width: 64, height: 64)
+            } else {
+                Button { Haptics.impact(); session.togglePlayPause() } label: {
+                    Image(systemName: session.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 64))
+                }
             }
-            Button { session.next() } label: {
+            Button { Haptics.tap(); session.next() } label: {
                 Image(systemName: "forward.fill").font(.title)
             }
-            Button { session.cycleRepeat() } label: {
+            Button { Haptics.tap(); session.cycleRepeat() } label: {
                 Image(systemName: session.repeatMode == 2 ? "repeat.1" : "repeat")
                     .font(.title3)
                     .foregroundStyle(session.repeatMode == 0 ? Color.secondary : Color.accentColor)
@@ -373,6 +380,7 @@ struct RemoteControlView: View {
                                 FavoriteStarButton(session: session, track: qt)
                             }
                             Button {
+                                Haptics.tap()
                                 session.play(index: index)
                             } label: {
                                 HStack(spacing: 6) {
