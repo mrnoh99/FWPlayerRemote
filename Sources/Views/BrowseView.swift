@@ -152,6 +152,16 @@ struct QueueBrowseView: View {
                                 Button { session.play(index: index) } label: {
                                     Label("Play Now", systemImage: "play.fill")
                                 }
+                                Section {
+                                    Button { session.moveQueue(from: IndexSet(integer: index), to: index - 1) } label: {
+                                        Label("Move Up", systemImage: "arrow.up")
+                                    }
+                                    .disabled(index == 0)
+                                    Button { session.moveQueue(from: IndexSet(integer: index), to: index + 2) } label: {
+                                        Label("Move Down", systemImage: "arrow.down")
+                                    }
+                                    .disabled(index >= state.queue.count - 1)
+                                }
                                 if let qt = queueTrack(track) {
                                     AddToFavoritesButton(session: session, track: qt)
                                     AddToPlaylistMenu(session: session, track: qt)
@@ -290,7 +300,15 @@ struct PlaylistBrowseView: View {
     /// Reveals the track's file in the Library (jumps to its containing folder).
     var onLocate: ((RemoteQueueTrack) -> Void)?
 
+    /// The navigation route carries a snapshot of the playlist; resolve the live
+    /// copy from the session so reorders (and other edits) reflect immediately
+    /// once the player re-broadcasts the library.
+    private var livePlaylist: RemotePlaylist {
+        session.library?.playlists.first(where: { $0.id == playlist.id }) ?? playlist
+    }
+
     var body: some View {
+        let playlist = livePlaylist
         List {
             ForEach(Array(playlist.tracks.enumerated()), id: \.offset) { index, track in
                 HStack(spacing: 8) {
@@ -311,7 +329,7 @@ struct PlaylistBrowseView: View {
                     .tint(.primary)
 
                     Menu {
-                        trackActions(track, at: index)
+                        trackActions(track, at: index, in: playlist)
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.body)
@@ -338,7 +356,7 @@ struct PlaylistBrowseView: View {
     /// Per-track actions inside a playlist: mirrors the player's playlist menu
     /// (Play Now / Play from Here / Play Next / Add to Queue / Add to Playlist).
     @ViewBuilder
-    private func trackActions(_ track: RemoteQueueTrack, at index: Int) -> some View {
+    private func trackActions(_ track: RemoteQueueTrack, at index: Int, in playlist: RemotePlaylist) -> some View {
         Button {
             session.setQueue([track], startAt: 0)
         } label: {
@@ -358,6 +376,20 @@ struct PlaylistBrowseView: View {
             session.enqueue([track])
         } label: {
             Label("Add to Queue", systemImage: "text.badge.plus")
+        }
+        Section {
+            Button {
+                session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: index), to: index - 1)
+            } label: {
+                Label("Move Up", systemImage: "arrow.up")
+            }
+            .disabled(index == 0)
+            Button {
+                session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: index), to: index + 2)
+            } label: {
+                Label("Move Down", systemImage: "arrow.down")
+            }
+            .disabled(index >= playlist.tracks.count - 1)
         }
         AddToFavoritesButton(session: session, track: track)
         AddToPlaylistMenu(session: session, track: track)
