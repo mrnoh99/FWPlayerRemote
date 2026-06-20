@@ -55,6 +55,8 @@ struct RemoteControlView: View {
                 LibraryView(session: session)
                     .navigationDestination(for: LibraryRoute.self) { route in
                         switch route {
+                        case .queue:
+                            QueueBrowseView(session: session, onLocate: { locate($0) })
                         case .folder(let folder):
                             FolderBrowseView(
                                 session: session,

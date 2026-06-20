@@ -10,6 +10,7 @@ struct RemoteFolderRoute: Hashable {
 
 /// A destination within the Library tab's value-based navigation stack.
 enum LibraryRoute: Hashable {
+    case queue
     case folder(RemoteFolderRoute)
     case playlist(RemotePlaylist)
 }
@@ -23,6 +24,18 @@ struct LibraryView: View {
         Group {
             if let library = session.library {
                 List {
+                    Section("Playback") {
+                        NavigationLink(value: LibraryRoute.queue) {
+                            HStack {
+                                Label("Queue", systemImage: "list.bullet")
+                                Spacer()
+                                if let count = session.state?.queue.count, count > 0 {
+                                    Text("\(count)").foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
                     if !library.sources.isEmpty {
                         Section("Sources") {
                             ForEach(library.sources) { source in
@@ -62,6 +75,109 @@ struct LibraryView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { session.requestLibrary() }
         .refreshable { session.requestLibrary() }
+    }
+}
+
+/// The player's current queue, reachable from the Library tab. Tap to jump to a
+/// track; the ••• menu offers Play Now / Add to Favorites / Add to Playlist /
+/// Locate File / Remove.
+struct QueueBrowseView: View {
+    @ObservedObject var session: RemoteSession
+    var onLocate: ((RemoteTrack) -> Void)?
+
+    @State private var editMode: EditMode = .inactive
+
+    var body: some View {
+        Group {
+            if let state = session.state, !state.queue.isEmpty {
+                List {
+                    ForEach(Array(state.queue.enumerated()), id: \.element.id) { index, track in
+                        HStack(spacing: 8) {
+                            Button {
+                                session.play(index: index)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Group {
+                                        if index == state.currentIndex {
+                                            Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                                                .foregroundStyle(.tint)
+                                        } else {
+                                            Text("\(index + 1)").foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .font(.caption)
+                                    .frame(width: 24, alignment: .center)
+                                    Text(track.title).lineLimit(1)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .tint(.primary)
+
+                            Menu {
+                                Button { session.play(index: index) } label: {
+                                    Label("Play Now", systemImage: "play.fill")
+                                }
+                                if let qt = queueTrack(track) {
+                                    AddToFavoritesButton(session: session, track: qt)
+                                    AddToPlaylistMenu(session: session, track: qt)
+                                }
+                                if track.sourceID != nil, let onLocate {
+                                    Button { onLocate(track) } label: {
+                                        Label("Locate File", systemImage: "folder")
+                                    }
+                                }
+                                Button(role: .destructive) {
+                                    session.removeFromQueue(at: index)
+                                } label: {
+                                    Label("Remove from Queue", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 36, height: 40)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                    .onMove { offsets, destination in
+                        session.moveQueue(from: offsets, to: destination)
+                    }
+                    .onDelete { offsets in
+                        session.removeFromQueue(at: offsets)
+                    }
+                }
+                .environment(\.editMode, $editMode)
+            } else {
+                ContentUnavailableView("Queue is Empty", systemImage: "list.bullet",
+                                       description: Text("Add music from the Library to build the queue."))
+            }
+        }
+        .navigationTitle("Queue")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let count = session.state?.queue.count, count > 0 {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .destructive) {
+                        session.clearQueue()
+                        editMode = .inactive
+                    } label: {
+                        Label("Clear", systemImage: "trash")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(editMode.isEditing ? "Done" : "Edit") {
+                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    }
+                }
+            }
+        }
+    }
+
+    private func queueTrack(_ track: RemoteTrack) -> RemoteQueueTrack? {
+        guard let sourceID = track.sourceID, let path = track.path else { return nil }
+        return RemoteQueueTrack(sourceID: sourceID, path: path, title: track.title)
     }
 }
 
@@ -270,7 +386,15 @@ struct FolderBrowseView: View {
                 }
             }
         }
-        .onAppear { session.browse(sourceID: sourceID, path: path) }
+        .task(id: path) {
+            // Retry a few times: if a browse request or its reply is dropped the
+            // folder would otherwise stay stuck on "Loading…".
+            for attempt in 0..<4 {
+                if session.listing(sourceID: sourceID, path: path) != nil { return }
+                session.browse(sourceID: sourceID, path: path)
+                try? await Task.sleep(nanoseconds: UInt64((2 + attempt)) * 1_000_000_000)
+            }
+        }
         .refreshable { session.browse(sourceID: sourceID, path: path) }
     }
 
