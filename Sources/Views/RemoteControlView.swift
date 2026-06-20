@@ -416,6 +416,8 @@ struct RemoteControlView: View {
                             .buttonStyle(.borderless)
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowBackground(index == state.currentIndex
+                                           ? Color.accentColor.opacity(0.15) : nil)
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
                                 session.removeFromQueue(at: index)

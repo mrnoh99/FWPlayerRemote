@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// The SF Symbol shown at the leading edge of a track row: a speaker (or pause)
+/// when the row is the track the player currently has loaded, otherwise a
+/// neutral music note. Keeps the "now playing" indicator consistent across the
+/// Library, History, and Playlist lists.
+func nowPlayingSymbol(isCurrent: Bool, isPlaying: Bool) -> String {
+    guard isCurrent else { return "music.note" }
+    return isPlaying ? "speaker.wave.2.fill" : "pause.fill"
+}
+
 /// A folder location pushed onto the library's navigation stack. Hashable so the
 /// stack can be driven (and restored) programmatically — e.g. by "Locate File".
 struct RemoteFolderRoute: Hashable {
@@ -184,6 +193,8 @@ struct QueueBrowseView: View {
                             }
                             .buttonStyle(.borderless)
                         }
+                        .listRowBackground(index == state.currentIndex
+                                           ? Color.accentColor.opacity(0.15) : nil)
                     }
                     .onMove { offsets, destination in
                         session.moveQueue(from: offsets, to: destination)
@@ -236,6 +247,7 @@ struct HistoryBrowseView: View {
             if !session.history.isEmpty {
                 List {
                     ForEach(Array(session.history.enumerated()), id: \.offset) { _, track in
+                        let isCurrent = session.isNowPlaying(sourceID: track.sourceID, path: track.path)
                         HStack(spacing: 8) {
                             if let qt = queueTrack(track) {
                                 FavoriteStarButton(session: session, track: qt)
@@ -243,9 +255,13 @@ struct HistoryBrowseView: View {
                             Button {
                                 if let qt = queueTrack(track) { session.playNext([qt]) }
                             } label: {
-                                Label(track.title, systemImage: "music.note")
-                                    .lineLimit(1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                HStack(spacing: 8) {
+                                    Image(systemName: nowPlayingSymbol(isCurrent: isCurrent, isPlaying: session.isPlaying))
+                                        .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                                    Text(track.title)
+                                        .lineLimit(1)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
                             .tint(.primary)
 
@@ -276,6 +292,7 @@ struct HistoryBrowseView: View {
                                 .buttonStyle(.borderless)
                             }
                         }
+                        .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
                     }
                 }
             } else {
@@ -311,6 +328,7 @@ struct PlaylistBrowseView: View {
         let playlist = livePlaylist
         List {
             ForEach(Array(playlist.tracks.enumerated()), id: \.offset) { index, track in
+                let isCurrent = session.isNowPlaying(sourceID: track.sourceID, path: track.path)
                 HStack(spacing: 8) {
                     FavoriteStarButton(session: session, track: track)
 
@@ -318,9 +336,15 @@ struct PlaylistBrowseView: View {
                         session.playNext([track])
                     } label: {
                         HStack {
-                            Text("\(index + 1)")
-                                .foregroundStyle(.secondary)
-                                .frame(width: 24, alignment: .trailing)
+                            Group {
+                                if isCurrent {
+                                    Image(systemName: session.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                                        .foregroundStyle(.tint)
+                                } else {
+                                    Text("\(index + 1)").foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(width: 24, alignment: .trailing)
                             Text(track.title)
                                 .lineLimit(1)
                             Spacer()
@@ -339,6 +363,7 @@ struct PlaylistBrowseView: View {
                     }
                     .buttonStyle(.borderless)
                 }
+                .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
             }
         }
         .toolbar {
@@ -569,14 +594,19 @@ struct FolderBrowseView: View {
     /// player's per-file operations (Play Now / Play Next / Add to Queue /
     /// Add to Playlist).
     private func audioRow(_ item: RemoteFileItem) -> some View {
-        HStack(spacing: 8) {
+        let isCurrent = session.isNowPlaying(sourceID: sourceID, path: item.path)
+        return HStack(spacing: 8) {
             FavoriteStarButton(session: session, track: queueTrack(from: item))
 
             Button {
                 session.playNext([queueTrack(from: item)])
             } label: {
-                Label(trackTitle(item), systemImage: "music.note")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 8) {
+                    Image(systemName: nowPlayingSymbol(isCurrent: isCurrent, isPlaying: session.isPlaying))
+                        .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    Text(trackTitle(item))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .tint(.primary)
 
@@ -591,7 +621,7 @@ struct FolderBrowseView: View {
             }
             .buttonStyle(.borderless)
         }
-        .listRowBackground(item.path == focusFilePath ? Color.accentColor.opacity(0.15) : nil)
+        .listRowBackground((isCurrent || item.path == focusFilePath) ? Color.accentColor.opacity(0.15) : nil)
         .swipeActions(edge: .trailing) {
             Button {
                 session.enqueue([queueTrack(from: item)])

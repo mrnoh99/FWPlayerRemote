@@ -267,6 +267,15 @@ final class RemoteSession: ObservableObject {
     func movePlaylistEntry(playlistID: String, from offsets: IndexSet, to destination: Int) {
         send(.movePlaylistEntry(playlistID: playlistID, from: offsets.sorted(), to: destination))
     }
+
+    /// True when the track at `sourceID`/`path` is the one currently loaded in the
+    /// player, so lists can shade it and show a speaker icon wherever it appears.
+    func isNowPlaying(sourceID: String?, path: String?) -> Bool {
+        guard let sourceID, let path, let state,
+              let index = state.currentIndex, state.queue.indices.contains(index) else { return false }
+        let current = state.queue[index]
+        return current.sourceID == sourceID && current.path == path
+    }
     func playFolder(sourceID: String, path: String, recursive: Bool = true) {
         send(.playFolder(sourceID: sourceID, path: path, recursive: recursive))
     }
