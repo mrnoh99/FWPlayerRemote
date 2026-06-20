@@ -203,6 +203,13 @@ final class RemoteSession: ObservableObject {
         send(.seek(time: clamped))
     }
     func play(index: Int) { send(.playIndex(index: index)) }
+    func toggleShuffle() { send(.toggleShuffle) }
+    func cycleRepeat() { send(.cycleRepeat) }
+
+    /// Whether the player has shuffle on.
+    var isShuffled: Bool { state?.isShuffled ?? false }
+    /// Repeat mode: 0 = off, 1 = all, 2 = one.
+    var repeatMode: Int { state?.repeatMode ?? 0 }
 
     // MARK: - Library & queue construction
 

@@ -228,7 +228,12 @@ struct RemoteControlView: View {
     }
 
     private var transportControls: some View {
-        HStack(spacing: 48) {
+        HStack(spacing: 28) {
+            Button { session.toggleShuffle() } label: {
+                Image(systemName: "shuffle")
+                    .font(.title3)
+                    .foregroundStyle(session.isShuffled ? Color.accentColor : Color.secondary)
+            }
             Button { session.previous() } label: {
                 Image(systemName: "backward.fill").font(.title)
             }
@@ -238,6 +243,11 @@ struct RemoteControlView: View {
             }
             Button { session.next() } label: {
                 Image(systemName: "forward.fill").font(.title)
+            }
+            Button { session.cycleRepeat() } label: {
+                Image(systemName: session.repeatMode == 2 ? "repeat.1" : "repeat")
+                    .font(.title3)
+                    .foregroundStyle(session.repeatMode == 0 ? Color.secondary : Color.accentColor)
             }
         }
         .tint(.primary)
