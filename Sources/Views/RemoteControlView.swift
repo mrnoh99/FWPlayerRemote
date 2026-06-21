@@ -15,6 +15,8 @@ struct RemoteControlView: View {
     /// The folder last browsed in each source, so re-opening a source returns
     /// there instead of its root.
     @State private var lastSourcePath: [String: String] = [:]
+    /// Whether the now-playing details section is expanded.
+    @State private var detailsExpanded = false
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
@@ -256,12 +258,83 @@ struct RemoteControlView: View {
     private var nowPlayingTab: some View {
         VStack(spacing: 8) {
             nowPlaying
+            nowPlayingDetails
             queue
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             progressBar
             transportControls
         }
         .padding()
+    }
+
+    // MARK: - Details (expand/collapse)
+
+    @ViewBuilder
+    private var nowPlayingDetails: some View {
+        if let info = session.currentCatalogInfo, Self.hasDetails(info) {
+            DisclosureGroup(isExpanded: $detailsExpanded) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        detailRow("Album", info.albumTitle)
+                        detailRow("Artist", info.artistName)
+                        detailRow("Genre", info.genre)
+                        detailRow("Released", info.releaseDate ?? info.year)
+                        detailRow("Tracks", info.trackCount.map { String($0) })
+                        detailRow("Label", info.recordLabel)
+                        detailRow("Rating", info.contentRating)
+                        detailRow("Copyright", info.copyright)
+                        detailParagraph("About", info.editorialNotes)
+                        detailParagraph("Lyrics", info.lyrics)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                }
+                .frame(maxHeight: 240)
+            } label: {
+                Label("Details", systemImage: "info.circle")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .tint(.secondary)
+            .onChange(of: detailsExpanded) { _, _ in Haptics.selection() }
+        }
+    }
+
+    private static func hasDetails(_ info: RemoteCatalogInfo) -> Bool {
+        info.albumTitle != nil || info.artistName != nil || info.genre != nil
+            || info.releaseDate != nil || info.year != nil || info.trackCount != nil
+            || info.recordLabel != nil || info.contentRating != nil
+            || info.editorialNotes != nil || info.copyright != nil || info.lyrics != nil
+    }
+
+    @ViewBuilder
+    private func detailRow(_ label: String, _ value: String?) -> some View {
+        if let value, !value.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 78, alignment: .leading)
+                Text(value)
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func detailParagraph(_ label: String, _ value: String?) -> some View {
+        if let value, !value.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     // MARK: - PIN pairing

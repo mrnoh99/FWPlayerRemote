@@ -30,6 +30,9 @@ final class RemoteSession: ObservableObject {
     @Published private(set) var listings: [String: RemoteListing] = [:]
     /// Album covers pushed by the player, keyed by track id.
     @Published private(set) var artworkByTrack: [String: UIImage] = [:]
+    /// Rich track details (catalog metadata + lyrics) pushed by the player,
+    /// keyed by track id. Shown in the collapsible details section.
+    @Published private(set) var catalogByTrack: [String: RemoteCatalogInfo] = [:]
     /// The player we are connected to (its advertised name).
     @Published private(set) var playerName: String
     /// Stable Bonjour identity used to cache the verified PIN.
@@ -227,6 +230,7 @@ final class RemoteSession: ObservableObject {
         library = nil
         listings = [:]
         artworkByTrack = [:]
+        catalogByTrack = [:]
         isScrubbing = false
         playbackAnchorDate = nil
     }
@@ -235,6 +239,12 @@ final class RemoteSession: ObservableObject {
     var currentArtwork: UIImage? {
         guard let id = currentTrack?.id else { return nil }
         return artworkByTrack[id]
+    }
+
+    /// The catalog details for the current track, if the player has pushed them.
+    var currentCatalogInfo: RemoteCatalogInfo? {
+        guard let id = currentTrack?.id else { return nil }
+        return catalogByTrack[id]
     }
 
     private func teardown() {
@@ -302,6 +312,10 @@ final class RemoteSession: ObservableObject {
                   let image = UIImage(data: data) else { return }
             if artworkByTrack.count > 16 { artworkByTrack.removeAll() }
             artworkByTrack[art.trackID] = image
+        case .catalogInfo(let info):
+            guard status == .connected else { return }
+            if catalogByTrack.count > 32 { catalogByTrack.removeAll() }
+            catalogByTrack[info.trackID] = info
         case .command:
             break
         }
