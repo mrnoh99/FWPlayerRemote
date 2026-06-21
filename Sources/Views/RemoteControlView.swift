@@ -35,7 +35,7 @@ struct RemoteControlView: View {
             .toolbar {
                 if selectedTab == 1, !libraryPath.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(action: popLibrary) {
+                        Button(action: goToLibraryHome) {
                             Image(systemName: "chevron.left")
                         }
                     }
@@ -147,6 +147,14 @@ struct RemoteControlView: View {
     private func popLibrary() {
         guard !libraryPath.isEmpty else { return }
         libraryPath.removeLast()
+    }
+
+    /// Returns all the way to the Library home (source/playlist list). The
+    /// in-list "‹ parent" row handles one level up; the top arrow exits the
+    /// whole browse.
+    private func goToLibraryHome() {
+        libraryPath.removeAll()
+        locateFilePath = nil
     }
 
     @ViewBuilder
