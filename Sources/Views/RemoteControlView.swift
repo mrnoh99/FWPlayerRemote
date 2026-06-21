@@ -306,13 +306,29 @@ struct RemoteControlView: View {
                     .foregroundStyle(.tint)
             }
 
-            Text(session.currentTrack?.artist ?? session.currentTrack?.album ?? " ")
+            Text(session.currentTrack?.artist ?? " ")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+
+            if let albumYear = nowPlayingAlbumYear {
+                Text(albumYear)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 4)
+    }
+
+    /// Album title and release year of the current track, shown small below the
+    /// title when known.
+    private var nowPlayingAlbumYear: String? {
+        let parts = [session.currentTrack?.album, session.currentTrack?.year]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var progressBar: some View {
