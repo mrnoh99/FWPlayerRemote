@@ -240,6 +240,12 @@ final class RemoteSession: ObservableObject {
     private func teardown() {
         staleMonitorTask?.cancel()
         staleMonitorTask = nil
+        // Detach the old link's callbacks before cancelling: NWConnection delivers
+        // .cancelled asynchronously, and without this the stale handler would fire
+        // after connect() has already installed the new link and flip status back
+        // to .disconnected mid-reconnect.
+        link?.onStateChange = nil
+        link?.onMessage = nil
         link?.cancel()
         link = nil
     }
