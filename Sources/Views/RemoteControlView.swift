@@ -271,25 +271,37 @@ struct RemoteControlView: View {
 
     @ViewBuilder
     private var nowPlayingDetails: some View {
-        if let info = session.currentCatalogInfo, Self.hasDetails(info) {
+        let info = session.currentCatalogInfo
+        let hasFields = info.map(Self.hasDetails) ?? false
+        if session.currentArtwork != nil || hasFields {
             DisclosureGroup(isExpanded: $detailsExpanded) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        detailRow("Album", info.albumTitle)
-                        detailRow("Artist", info.artistName)
-                        detailRow("Genre", info.genre)
-                        detailRow("Released", info.releaseDate ?? info.year)
-                        detailRow("Tracks", info.trackCount.map { String($0) })
-                        detailRow("Label", info.recordLabel)
-                        detailRow("Rating", info.contentRating)
-                        detailRow("Copyright", info.copyright)
-                        detailParagraph("About", info.editorialNotes)
-                        detailParagraph("Lyrics", info.lyrics)
+                        if let cover = session.currentArtwork {
+                            Image(uiImage: cover)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .frame(maxHeight: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        if let info {
+                            detailRow("Album", info.albumTitle)
+                            detailRow("Artist", info.artistName)
+                            detailRow("Genre", info.genre)
+                            detailRow("Released", info.releaseDate ?? info.year)
+                            detailRow("Tracks", info.trackCount.map { String($0) })
+                            detailRow("Label", info.recordLabel)
+                            detailRow("Rating", info.contentRating)
+                            detailRow("Copyright", info.copyright)
+                            detailParagraph("About", info.editorialNotes)
+                            detailParagraph("Lyrics", info.lyrics)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 6)
                 }
-                .frame(maxHeight: 240)
+                .frame(maxHeight: 320)
             } label: {
                 Label("Details", systemImage: "info.circle")
                     .font(.subheadline.weight(.semibold))
