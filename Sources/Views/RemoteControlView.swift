@@ -347,10 +347,11 @@ struct RemoteControlView: View {
         .padding(.bottom, 4)
     }
 
-    /// Album title and release year of the current track, shown small below the
-    /// title when known.
+    /// Album title, release year, and genre of the current track, shown small
+    /// below the title when known (year/genre may come from the Apple Music
+    /// Catalog on the player side).
     private var nowPlayingAlbumYear: String? {
-        let parts = [session.currentTrack?.album, session.currentTrack?.year]
+        let parts = [session.currentTrack?.album, session.currentTrack?.year, session.currentTrack?.genre]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
