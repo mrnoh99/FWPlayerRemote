@@ -12,6 +12,9 @@ struct RemoteControlView: View {
     @State private var libraryPath: [LibraryRoute] = []
     /// The file a "Locate File" action is revealing (highlighted in its folder).
     @State private var locateFilePath: String?
+    /// The folder last browsed in each source, so re-opening a source returns
+    /// there instead of its root.
+    @State private var lastSourcePath: [String: String] = [:]
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
@@ -54,7 +57,14 @@ struct RemoteControlView: View {
             }
             .onChange(of: libraryPath) { _, _ in
                 clearLocateFocusIfNeeded()
+                recordCurrentSourcePath()
             }
+    }
+
+    /// Remembers where we are in the current source so re-opening it returns here.
+    private func recordCurrentSourcePath() {
+        guard case .folder(let folder)? = libraryPath.last else { return }
+        lastSourcePath[folder.sourceID] = folder.path
     }
 
     private var screenTitle: String {
@@ -141,6 +151,13 @@ struct RemoteControlView: View {
     }
 
     private func openLibraryRoute(_ route: LibraryRoute) {
+        // Opening a source from the Library home: jump to the folder we last
+        // browsed in it, rather than its root.
+        if libraryPath.isEmpty, case .folder(let folder) = route, folder.path.isEmpty,
+           let saved = lastSourcePath[folder.sourceID], !saved.isEmpty {
+            libraryPath = folderRoutes(sourceID: folder.sourceID, path: saved)
+            return
+        }
         libraryPath.append(route)
     }
 
