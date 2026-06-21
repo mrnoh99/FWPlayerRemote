@@ -527,6 +527,9 @@ struct FolderBrowseView: View {
     /// scrolled into view (set by "Locate File").
     var focusFilePath: String?
 
+    /// The sub-folder last opened from here, so returning scrolls back to it.
+    @State private var lastOpenedChildPath: String?
+
     private var listing: RemoteListing? { session.listing(sourceID: sourceID, path: path) }
     private var audioItems: [RemoteFileItem] { listing?.items.filter { $0.kind == .audio } ?? [] }
     private var canGoToParent: Bool { !path.isEmpty }
@@ -593,6 +596,7 @@ struct FolderBrowseView: View {
                     case .directory:
                         Button {
                             Haptics.selection()
+                            lastOpenedChildPath = item.path
                             onOpenFolder(RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name))
                         } label: {
                             Label(item.name, systemImage: "folder")
@@ -605,8 +609,21 @@ struct FolderBrowseView: View {
                     }
                 }
             }
-            .onAppear { scrollToFocus(using: proxy) }
+            .onAppear {
+                scrollToFocus(using: proxy)
+                restoreLastOpenedChild(using: proxy)
+            }
             .onChange(of: listing.items.count) { scrollToFocus(using: proxy) }
+        }
+    }
+
+    /// On returning from a sub-folder, scrolls back to the folder that was opened.
+    private func restoreLastOpenedChild(using proxy: ScrollViewProxy) {
+        guard let child = lastOpenedChildPath,
+              listing?.items.contains(where: { $0.path == child }) == true else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            proxy.scrollTo(child, anchor: .center)
         }
     }
 
