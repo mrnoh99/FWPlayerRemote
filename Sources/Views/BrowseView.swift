@@ -645,29 +645,23 @@ struct FolderBrowseView: View {
         return HStack(spacing: 8) {
             FavoriteStarButton(session: session, track: queueTrack(from: item))
 
-            Button {
-                Haptics.tap()
-                session.playNext([queueTrack(from: item)])
+            // Tapping the track row opens its action menu (Play Now / Play Next /
+            // Add to Queue / Favorite / Add to Playlist).
+            Menu {
+                trackActions(item)
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: nowPlayingSymbol(isCurrent: isCurrent, isPlaying: session.isPlaying))
                         .foregroundStyle(isCurrent ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     Text(trackTitle(item))
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "ellipsis")
+                        .font(.body)
+                        .foregroundStyle(.tertiary)
                 }
+                .contentShape(Rectangle())
             }
             .tint(.primary)
-
-            Menu {
-                trackActions(item)
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
         }
         .listRowBackground((isCurrent || item.path == focusFilePath) ? Color.accentColor.opacity(0.15) : nil)
         .swipeActions(edge: .trailing) {
