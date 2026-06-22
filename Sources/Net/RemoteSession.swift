@@ -38,6 +38,11 @@ final class RemoteSession: ObservableObject {
     /// Stable Bonjour identity used to cache the verified PIN.
     let playerID: String
 
+    /// The deepest folder browsed per source, so re-opening a source returns
+    /// there. Held on the session (not the view's @State) so it survives the
+    /// control view being recreated when the device list re-renders.
+    var lastSourcePath: [String: String] = [:]
+
     private let endpoint: NWEndpoint
     private var link: RemoteLink?
     /// While the user is dragging the scrubber we ignore inbound time updates so

@@ -12,9 +12,6 @@ struct RemoteControlView: View {
     @State private var libraryPath: [LibraryRoute] = []
     /// The file a "Locate File" action is revealing (highlighted in its folder).
     @State private var locateFilePath: String?
-    /// The folder last browsed in each source, so re-opening a source returns
-    /// there instead of its root.
-    @State private var lastSourcePath: [String: String] = [:]
     /// Whether the now-playing details section is expanded.
     @State private var detailsExpanded = false
 
@@ -149,7 +146,7 @@ struct RemoteControlView: View {
         // Opening a source from the Library home: jump to the folder we last
         // browsed in it, rather than its root.
         if libraryPath.isEmpty, case .folder(let folder) = route, folder.path.isEmpty,
-           let saved = lastSourcePath[folder.sourceID], !saved.isEmpty {
+           let saved = session.lastSourcePath[folder.sourceID], !saved.isEmpty {
             libraryPath = folderRoutes(sourceID: folder.sourceID, path: saved)
             return
         }
@@ -158,7 +155,7 @@ struct RemoteControlView: View {
         // source from the Library home returns here. Recorded only when going IN
         // (not when backing out), so stepping back to the root doesn't erase it.
         if case .folder(let folder) = route, !folder.path.isEmpty {
-            lastSourcePath[folder.sourceID] = folder.path
+            session.lastSourcePath[folder.sourceID] = folder.path
         }
     }
 
