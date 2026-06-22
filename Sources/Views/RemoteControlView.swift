@@ -147,7 +147,7 @@ struct RemoteControlView: View {
         // browsed in it, rather than its root.
         if libraryPath.isEmpty, case .folder(let folder) = route, folder.path.isEmpty,
            let saved = session.lastSourcePath[folder.sourceID], !saved.isEmpty {
-            libraryPath = folderRoutes(sourceID: folder.sourceID, path: saved)
+            libraryPath = folderRouteChain(sourceID: folder.sourceID, folderPath: saved)
             return
         }
         libraryPath.append(route)
@@ -236,15 +236,20 @@ struct RemoteControlView: View {
         return RemoteQueueTrack(sourceID: sourceID, path: path, title: track.title)
     }
 
-    /// Builds the navigation chain down to the folder that holds `path`, starting
-    /// at the source root so the back button walks back up naturally.
+    /// Builds the navigation chain down to the folder that holds `path` (a file),
+    /// starting at the source root so the back button walks back up naturally.
     private func folderRoutes(sourceID: String, path: String) -> [LibraryRoute] {
+        folderRouteChain(sourceID: sourceID, folderPath: (path as NSString).deletingLastPathComponent)
+    }
+
+    /// Builds the navigation chain down to and INCLUDING `folderPath` (a folder),
+    /// starting at the source root. Used to restore a source's last folder.
+    private func folderRouteChain(sourceID: String, folderPath: String) -> [LibraryRoute] {
         let sourceName = session.library?.sources.first { $0.id == sourceID }?.displayName ?? "Source"
         var routes: [LibraryRoute] = [.folder(RemoteFolderRoute(sourceID: sourceID, path: "", title: sourceName))]
-        let folder = (path as NSString).deletingLastPathComponent
-        guard !folder.isEmpty else { return routes }
+        guard !folderPath.isEmpty else { return routes }
         var accumulated = ""
-        for component in folder.split(separator: "/").map(String.init) {
+        for component in folderPath.split(separator: "/").map(String.init) {
             accumulated = accumulated.isEmpty ? component : accumulated + "/" + component
             routes.append(.folder(RemoteFolderRoute(sourceID: sourceID, path: accumulated, title: component)))
         }
