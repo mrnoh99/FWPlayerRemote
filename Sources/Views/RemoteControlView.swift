@@ -274,10 +274,18 @@ struct RemoteControlView: View {
     private var nowPlayingDetails: some View {
         let info = session.currentCatalogInfo
         let hasFields = info.map(Self.hasDetails) ?? false
-        if hasFields {
+        if session.currentArtwork != nil || hasFields {
             DisclosureGroup(isExpanded: $detailsExpanded) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
+                        if let cover = session.currentArtwork {
+                            Image(uiImage: cover)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity)
+                                .frame(maxHeight: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
                         if let info {
                             detailRow("Album", info.albumTitle)
                             detailRow("Artist", info.artistName)
@@ -404,10 +412,7 @@ struct RemoteControlView: View {
     // MARK: - Connected content
 
     private var nowPlaying: some View {
-        VStack(spacing: 6) {
-            artworkHeader
-                .padding(.bottom, 6)
-
+        VStack(spacing: 4) {
             Text(session.currentTrack?.title ?? "Nothing Playing")
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
@@ -432,26 +437,6 @@ struct RemoteControlView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.bottom, 4)
-    }
-
-    /// The current track's album art (or a placeholder), shown at the top of the
-    /// now-playing screen.
-    private var artworkHeader: some View {
-        Group {
-            if let cover = session.currentArtwork {
-                Image(uiImage: cover).resizable().scaledToFill()
-            } else {
-                Image(systemName: "music.note")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.secondary.opacity(0.12))
-            }
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .frame(maxWidth: 220, maxHeight: 220)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
     }
 
     /// Album title, release year, and genre of the current track, shown small
