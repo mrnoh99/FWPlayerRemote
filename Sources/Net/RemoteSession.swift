@@ -42,6 +42,10 @@ final class RemoteSession: ObservableObject {
     /// there. Held on the session (not the view's @State) so it survives the
     /// control view being recreated when the device list re-renders.
     var lastSourcePath: [String: String] = [:]
+    /// The sub-folder last opened from each folder (keyed by sourceID+path), so
+    /// returning to a folder scrolls back to it. Held on the session because the
+    /// browse view is destroyed when navigating in/out.
+    var lastOpenedChild: [String: String] = [:]
 
     private let endpoint: NWEndpoint
     private var link: RemoteLink?
