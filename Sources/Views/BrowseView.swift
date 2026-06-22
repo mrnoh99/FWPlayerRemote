@@ -614,17 +614,23 @@ struct FolderBrowseView: View {
                 scrollToFocus(using: proxy)
                 restoreLastOpenedChild(using: proxy)
             }
-            .onChange(of: listing.items.count) { scrollToFocus(using: proxy) }
+            .onChange(of: listing.items.count) {
+                scrollToFocus(using: proxy)
+                restoreLastOpenedChild(using: proxy)
+            }
         }
     }
 
     /// On returning from a sub-folder, scrolls back to the folder that was opened.
+    /// Retries a few times since the rows may not be laid out on the first frame.
     private func restoreLastOpenedChild(using proxy: ScrollViewProxy) {
         guard let child = session.lastOpenedChild[childKey],
               listing?.items.contains(where: { $0.path == child }) == true else { return }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            proxy.scrollTo(child, anchor: .center)
+            for delayMs in [80, 220, 400] {
+                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+                proxy.scrollTo(child, anchor: .center)
+            }
         }
     }
 
