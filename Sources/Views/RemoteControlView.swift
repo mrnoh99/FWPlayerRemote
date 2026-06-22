@@ -56,7 +56,16 @@ struct RemoteControlView: View {
             }
             .onChange(of: libraryPath) { _, _ in
                 clearLocateFocusIfNeeded()
+                recordCurrentSourcePath()
             }
+    }
+
+    /// Remembers the folder we're currently in for this source, so re-opening the
+    /// source from the Library home returns to where we left (not the deepest
+    /// folder ever visited). Held on the session so it survives view recreation.
+    private func recordCurrentSourcePath() {
+        guard case .folder(let folder)? = libraryPath.last else { return }
+        session.lastSourcePath[folder.sourceID] = folder.path
     }
 
     private var screenTitle: String {
@@ -151,12 +160,6 @@ struct RemoteControlView: View {
             return
         }
         libraryPath.append(route)
-        // Remember the deepest folder opened in each source, so re-opening the
-        // source from the Library home returns here. Recorded only when going IN
-        // (not when backing out), so stepping back to the root doesn't erase it.
-        if case .folder(let folder) = route, !folder.path.isEmpty {
-            session.lastSourcePath[folder.sourceID] = folder.path
-        }
     }
 
     private func popLibrary() {
