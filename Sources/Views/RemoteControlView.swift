@@ -301,8 +301,8 @@ struct RemoteControlView: View {
                             detailParagraph("About", info.editorialNotes)
                             detailParagraph("Lyrics", info.lyrics)
 
-                            Label((info.isFromAppleMusic ?? false) ? "via Apple Music" : "from file tags",
-                                  systemImage: (info.isFromAppleMusic ?? false) ? "music.note" : "doc.text")
+                            Label("via \(info.source ?? "file tags")",
+                                  systemImage: (info.source ?? "file tags") == "file tags" ? "doc.text" : "music.note")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                                 .padding(.top, 2)
