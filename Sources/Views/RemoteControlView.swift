@@ -295,6 +295,12 @@ struct RemoteControlView: View {
                             detailRow("Copyright", info.copyright)
                             detailParagraph("About", info.editorialNotes)
                             detailParagraph("Lyrics", info.lyrics)
+
+                            Label((info.isFromAppleMusic ?? false) ? "via Apple Music" : "from file tags",
+                                  systemImage: (info.isFromAppleMusic ?? false) ? "music.note" : "doc.text")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 2)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
