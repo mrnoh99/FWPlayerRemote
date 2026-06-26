@@ -35,7 +35,7 @@ struct DeviceListView: View {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(player.name).font(.body.weight(.medium))
-                        Text(PairedPINStore.isPaired(player.id) ? "Tap to control" : "Tap to connect with PIN")
+                        Text("Tap to control")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 } icon: {
