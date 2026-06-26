@@ -71,7 +71,9 @@ final class RemoteSession: ObservableObject {
         self.endpoint = player.endpoint
     }
 
-    var hasSavedPIN: Bool { PairedPINStore.isPaired(playerID) }
+    /// PIN-less auto-connect: every discovered player connects (and reconnects)
+    /// automatically, so the connection/reconnection logic always proceeds.
+    var hasSavedPIN: Bool { true }
 
     // MARK: - Lifecycle
 
@@ -429,7 +431,7 @@ final class RemoteSession: ObservableObject {
     }
 
     private func reconnectIfPaired() {
-        guard PairedPINStore.isPaired(playerID), !isBackgrounded, link == nil else { return }
+        guard hasSavedPIN, !isBackgrounded, link == nil else { return }
         scheduleReconnect()
     }
 
