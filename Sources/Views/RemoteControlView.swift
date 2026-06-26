@@ -372,12 +372,12 @@ struct RemoteControlView: View {
 
             Text("Enter PIN")
                 .font(.title2.weight(.semibold))
-            Text("Enter the 6-digit PIN shown on \(session.playerName).")
+            Text("Enter the PIN shown on \(session.playerName).")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            TextField("000000", text: $pin)
+            TextField("0", text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .multilineTextAlignment(.center)
@@ -385,7 +385,7 @@ struct RemoteControlView: View {
                 .focused($pinFocused)
                 .onChange(of: pin) { _, new in
                     let digits = new.filter(\.isNumber)
-                    pin = String(digits.prefix(6))
+                    pin = String(digits.prefix(1))
                 }
 
             if let authError = session.authError {
@@ -406,7 +406,7 @@ struct RemoteControlView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count != 6 || session.status == .authenticating)
+            .disabled(pin.count != 1 || session.status == .authenticating)
         }
         .padding(.horizontal, 32)
         .onAppear { pinFocused = true }
