@@ -26,6 +26,11 @@ targets:
       path: Support/Info.plist
       properties:
         CFBundleDisplayName: FWPlayer Remote
+        LSApplicationCategoryType: public.app-category.music
+        # Standard App Store export-compliance answer: the app uses only
+        # Apple-provided TLS on the local network, which is exempt, so no
+        # annual self-classification report is required.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         # Discover and connect to FWPlayer instances on the local network.
         NSLocalNetworkUsageDescription: "FWPlayer Remote finds FWPlayer on your Mac, iPad, or iPhone on the local network so you can control playback."
