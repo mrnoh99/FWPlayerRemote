@@ -64,6 +64,11 @@ final class RemoteSession: ObservableObject {
     /// server's keepalive interval it's dead, so we reconnect.
     private var lastMessageDate = Date()
     private var staleMonitorTask: Task<Void, Never>?
+    /// Fires if a connection attempt stalls in `.connecting` — e.g. the service
+    /// resolved to a multi-homed Mac's wired address that this device can't
+    /// actually reach, so the socket hangs instead of failing. Forces a fresh
+    /// attempt (re-resolving the service) so a reachable address gets tried.
+    private var connectWatchdogTask: Task<Void, Never>?
 
     init(player: DiscoveredPlayer) {
         self.playerID = player.id
@@ -113,6 +118,8 @@ final class RemoteSession: ObservableObject {
                 // TCP is up; pairing/auth follows. Clear any pending retry.
                 self.reconnectTask?.cancel()
                 self.reconnectTask = nil
+                self.connectWatchdogTask?.cancel()
+                self.connectWatchdogTask = nil
                 self.reconnectDelay = 1
             case .waiting:
                 // The path isn't ready yet (common right after returning from the
@@ -148,6 +155,20 @@ final class RemoteSession: ObservableObject {
         lastMessageDate = Date()
         link.start()
         startStaleMonitor()
+        startConnectWatchdog()
+    }
+
+    /// If TCP hasn't come up within a few seconds, tear the attempt down and
+    /// retry so a stalled connect (e.g. an unreachable address on a multi-homed
+    /// player) doesn't leave us stuck at "Connecting…".
+    private func startConnectWatchdog() {
+        connectWatchdogTask?.cancel()
+        connectWatchdogTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            guard self.status == .connecting, !self.isBackgrounded else { return }
+            self.reconnect()
+        }
     }
 
     /// Watches for a silent link. The server sends a keepalive every ~2s, so if
@@ -261,6 +282,8 @@ final class RemoteSession: ObservableObject {
     private func teardown() {
         staleMonitorTask?.cancel()
         staleMonitorTask = nil
+        connectWatchdogTask?.cancel()
+        connectWatchdogTask = nil
         // Detach the old link's callbacks before cancelling: NWConnection delivers
         // .cancelled asynchronously, and without this the stale handler would fire
         // after connect() has already installed the new link and flip status back
