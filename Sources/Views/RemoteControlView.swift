@@ -267,8 +267,31 @@ struct RemoteControlView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             progressBar
             transportControls
+            volumeControl
         }
         .padding()
+    }
+
+    private var volumeControl: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Slider(
+                value: Binding(
+                    get: { session.volume },
+                    set: { session.setVolume($0) }
+                ),
+                in: 0...1,
+                step: 0.02,
+                onEditingChanged: { editing in session.isAdjustingVolume = editing }
+            )
+            .tint(.accentColor)
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Details (expand/collapse)

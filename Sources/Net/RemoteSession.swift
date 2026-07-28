@@ -52,6 +52,9 @@ final class RemoteSession: ObservableObject {
     /// While the user is dragging the scrubber we ignore inbound time updates so
     /// the thumb doesn't fight the user.
     @Published var isScrubbing = false
+    /// While the user drags the volume slider we ignore inbound volume updates so
+    /// the thumb doesn't fight the user.
+    @Published var isAdjustingVolume = false
     /// Wall-clock anchor for the last `currentTime` received from the player.
     private var playbackAnchorDate: Date?
 
@@ -326,10 +329,14 @@ final class RemoteSession: ObservableObject {
             }
         case .state(let state):
             guard status == .connected || status == .authenticating else { return }
-            if self.isScrubbing {
+            if self.isScrubbing || self.isAdjustingVolume {
                 var merged = state
-                merged.currentTime = self.state?.currentTime ?? state.currentTime
+                // Keep the value the user is actively dragging so the incoming
+                // state echo doesn't make the thumb jump.
+                if self.isScrubbing { merged.currentTime = self.state?.currentTime ?? state.currentTime }
+                if self.isAdjustingVolume { merged.volume = self.state?.volume ?? state.volume }
                 self.state = merged
+                if !self.isScrubbing { playbackAnchorDate = Date() }
             } else {
                 self.state = state
                 playbackAnchorDate = Date()
@@ -385,6 +392,21 @@ final class RemoteSession: ObservableObject {
     func play(index: Int) { send(.playIndex(index: index)) }
     func toggleShuffle() { send(.toggleShuffle) }
     func cycleRepeat() { send(.cycleRepeat) }
+
+    /// Output volume, 0.0…1.0.
+    var volume: Double { state?.volume ?? 1.0 }
+
+    /// Optimistically updates the volume (so the slider is responsive) and tells
+    /// the player. While `isAdjustingVolume` is set, incoming state echoes keep
+    /// the local value instead of snapping the thumb back.
+    func setVolume(_ value: Double) {
+        let clamped = min(max(0, value), 1)
+        if var state = state {
+            state.volume = clamped
+            self.state = state
+        }
+        send(.setVolume(volume: clamped))
+    }
 
     /// Whether the player has shuffle on.
     var isShuffled: Bool { state?.isShuffled ?? false }
