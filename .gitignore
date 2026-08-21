@@ -1,20 +1,19 @@
-# Generated Xcode project (run `xcodegen generate`)
-*.xcodeproj
-*.xcworkspace
+# The Xcode project (FWPlayerRemote.xcodeproj) and its generated Support/Info.plist
+# are COMMITTED so the repo can be cloned and built without running xcodegen.
+# Both are still generated from project.yml — run `xcodegen generate` only when
+# you add/remove source files or change Info.plist keys, then commit the result.
 
-# Generated Info.plist (created by xcodegen from project.yml)
-Support/Info.plist
-
-# Xcode user data / build
+# Xcode user-specific state (never commit — lives inside the .xcodeproj)
 xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Build output
 DerivedData/
 build/
-*.xcuserstate
-
-# Swift Package Manager
-.swiftpm/
 .build/
-Package.resolved
+.swiftpm/
 
 # macOS
 .DS_Store
