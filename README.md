@@ -10,6 +10,14 @@ player's sources (on-device folder, added folders, SMB shares) and playlists,
 then play a folder/playlist as a new queue or add individual tracks to the
 current one.
 
+Playlists can be managed from the remote too: **New Playlist…** in the Library
+(or from any track's *Add to Playlist* menu, which creates it with that track),
+swipe to rename or delete, and add or remove tracks. **Favorites** and **Played**
+(every track the player has played) are built in and can't be renamed or deleted.
+
+If the player runs a different protocol version than this app, a notice at the top
+explains that some features may not work until both are updated.
+
 It covers both of the intended scenarios with a single app:
 
 - **Control the Mac's FWPlayer** from an iPhone or iPad.
@@ -50,6 +58,7 @@ allow it so discovery works.
 ## Project layout
 
 ```
+scripts/bump-build.sh       Bumps the build number in project.yml and the Xcode project
 project.yml                 XcodeGen project definition (single iOS app target)
 Support/
   FWPlayerRemote.entitlements  Network client entitlement

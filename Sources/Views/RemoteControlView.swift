@@ -33,6 +33,17 @@ struct RemoteControlView: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let note = session.protocolNote {
+                    Label(note, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(.bar)
+                }
+            }
             .navigationTitle(screenTitle)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(selectedTab == 1 && !libraryPath.isEmpty)

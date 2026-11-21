@@ -47,6 +47,16 @@ final class RemoteSession: ObservableObject {
     /// Rich track details (catalog metadata + lyrics) pushed by the player,
     /// keyed by track id. Shown in the collapsible details section.
     @Published private(set) var catalogByTrack: [String: RemoteCatalogInfo] = [:]
+    /// A notice when the player speaks a different protocol version than this
+    /// app, so a missing feature is explained instead of silently ignored.
+    var protocolNote: String? {
+        guard let version = state?.protocolVersion, version != fwRemoteProtocolVersion else { return nil }
+        if version < fwRemoteProtocolVersion {
+            return "FWPlayer is an older version (protocol \(version) vs \(fwRemoteProtocolVersion)). Newer Remote features may not work until you update it."
+        }
+        return "FWPlayer is newer than this Remote (protocol \(version) vs \(fwRemoteProtocolVersion)). Update FWPlayer Remote to use all of its features."
+    }
+
     /// A pending "new playlist" / "rename playlist" name prompt; the control view
     /// presents it as an alert (it lives here so menus can request it).
     @Published var playlistPrompt: PlaylistPrompt?
