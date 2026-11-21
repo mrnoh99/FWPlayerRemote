@@ -106,7 +106,7 @@ struct LibraryView: View {
                             }
                             .tint(.primary)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if playlist.id != fwFavoritesPlaylistID {
+                                if playlist.id != fwFavoritesPlaylistID && playlist.id != fwPlayedPlaylistID {
                                     Button(role: .destructive) {
                                         session.deletePlaylist(playlist.id)
                                     } label: {
