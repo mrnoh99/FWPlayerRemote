@@ -8,6 +8,20 @@ import UIKit
 /// A live connection to one FWPlayer instance. Holds the latest `PlaybackState`
 /// pushed by the player and sends transport commands back. Drives the
 /// `RemoteControlView`.
+/// A playlist-name prompt requested from a menu or list.
+enum PlaylistPrompt: Identifiable, Equatable {
+    /// Create a playlist, seeded with `tracks` (may be empty).
+    case create(tracks: [RemoteQueueTrack])
+    case rename(id: String, current: String)
+
+    var id: String {
+        switch self {
+        case .create: "create"
+        case .rename(let id, _): "rename-\(id)"
+        }
+    }
+}
+
 @MainActor
 final class RemoteSession: ObservableObject {
     enum Status: Equatable {
@@ -33,6 +47,9 @@ final class RemoteSession: ObservableObject {
     /// Rich track details (catalog metadata + lyrics) pushed by the player,
     /// keyed by track id. Shown in the collapsible details section.
     @Published private(set) var catalogByTrack: [String: RemoteCatalogInfo] = [:]
+    /// A pending "new playlist" / "rename playlist" name prompt; the control view
+    /// presents it as an alert (it lives here so menus can request it).
+    @Published var playlistPrompt: PlaylistPrompt?
     /// The player we are connected to (its advertised name).
     @Published private(set) var playerName: String
     /// Stable Bonjour identity used to cache the verified PIN.
@@ -437,6 +454,15 @@ final class RemoteSession: ObservableObject {
     }
     func enqueue(_ tracks: [RemoteQueueTrack]) { send(.enqueue(tracks: tracks)) }
     func playNext(_ tracks: [RemoteQueueTrack]) { send(.playNext(tracks: tracks)) }
+    func createPlaylist(name: String, tracks: [RemoteQueueTrack] = []) {
+        send(.createPlaylist(name: name, tracks: tracks))
+    }
+    func renamePlaylist(_ playlistID: String, to name: String) {
+        send(.renamePlaylist(playlistID: playlistID, name: name))
+    }
+    func deletePlaylist(_ playlistID: String) {
+        send(.deletePlaylist(playlistID: playlistID))
+    }
     func addToPlaylist(_ playlistID: String, tracks: [RemoteQueueTrack]) {
         send(.addToPlaylist(playlistID: playlistID, tracks: tracks))
     }

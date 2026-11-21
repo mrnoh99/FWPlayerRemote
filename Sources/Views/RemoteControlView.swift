@@ -14,6 +14,8 @@ struct RemoteControlView: View {
     @State private var locateFilePath: String?
     /// Whether the now-playing details section is expanded.
     @State private var detailsExpanded = false
+    /// Text typed into the new/rename playlist alert.
+    @State private var playlistPromptName = ""
 
     init(session: RemoteSession) {
         _session = StateObject(wrappedValue: session)
@@ -44,6 +46,34 @@ struct RemoteControlView: View {
                 }
             }
             .onAppear { session.connectIfNeeded() }
+            .alert(playlistPromptTitle,
+                   isPresented: Binding(
+                       get: { session.playlistPrompt != nil },
+                       set: { if !$0 { session.playlistPrompt = nil } }
+                   )) {
+                // Captured now so the buttons still know the prompt after the
+                // alert dismisses and clears it.
+                let prompt = session.playlistPrompt
+                TextField("Playlist name", text: $playlistPromptName)
+                Button("Cancel", role: .cancel) {}
+                Button(playlistPromptActionTitle) {
+                    let name = playlistPromptName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    switch prompt {
+                    case .create(let tracks):
+                        session.createPlaylist(name: name, tracks: tracks)
+                    case .rename(let id, _):
+                        if !name.isEmpty { session.renamePlaylist(id, to: name) }
+                    case nil:
+                        break
+                    }
+                }
+            }
+            .onChange(of: session.playlistPrompt) { _, prompt in
+                switch prompt {
+                case .rename(_, let current): playlistPromptName = current
+                default: playlistPromptName = ""
+                }
+            }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .active: session.appDidBecomeActive()
@@ -149,6 +179,16 @@ struct RemoteControlView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(nil, value: libraryPath.count)
+    }
+
+    private var playlistPromptTitle: String {
+        if case .rename = session.playlistPrompt { return "Rename Playlist" }
+        return "New Playlist"
+    }
+
+    private var playlistPromptActionTitle: String {
+        if case .rename = session.playlistPrompt { return "Rename" }
+        return "Create"
     }
 
     private func openLibraryRoute(_ route: LibraryRoute) {

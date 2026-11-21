@@ -88,9 +88,10 @@ struct LibraryView: View {
                     }
 
                     Section("Playlists") {
-                        if library.playlists.isEmpty {
-                            Text("No playlists on the player.")
-                                .foregroundStyle(.secondary)
+                        Button {
+                            session.playlistPrompt = .create(tracks: [])
+                        } label: {
+                            Label("New Playlist…", systemImage: "plus")
                         }
                         ForEach(library.playlists) { playlist in
                             Button {
@@ -104,7 +105,21 @@ struct LibraryView: View {
                                 }
                             }
                             .tint(.primary)
-                            .disabled(playlist.tracks.isEmpty)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                if playlist.id != fwFavoritesPlaylistID {
+                                    Button(role: .destructive) {
+                                        session.deletePlaylist(playlist.id)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                    Button {
+                                        session.playlistPrompt = .rename(id: playlist.id, current: playlist.name)
+                                    } label: {
+                                        Label("Rename", systemImage: "pencil")
+                                    }
+                                    .tint(.orange)
+                                }
+                            }
                         }
                     }
                 }
@@ -498,8 +513,14 @@ struct AddToPlaylistMenu: View {
     let track: RemoteQueueTrack
 
     var body: some View {
-        if let playlists = session.library?.playlists, !playlists.isEmpty {
+        if let playlists = session.library?.playlists {
             Menu {
+                Button {
+                    session.playlistPrompt = .create(tracks: [track])
+                } label: {
+                    Label("New Playlist…", systemImage: "plus")
+                }
+                if !playlists.isEmpty { Divider() }
                 ForEach(playlists) { playlist in
                     Button {
                         session.addToPlaylist(playlist.id, tracks: [track])
