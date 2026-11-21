@@ -63,13 +63,20 @@ Sources/
 
 ## Building
 
-The Xcode project is generated with [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-so it isn't committed (see `.gitignore`).
+The generated Xcode project (`FWPlayerRemote.xcodeproj`) is committed, so you can clone
+and build with no extra tooling (see [BUILD.md](BUILD.md)):
+
+```bash
+open FWPlayerRemote.xcodeproj
+```
+
+`project.yml` ([XcodeGen](https://github.com/yonaskolb/XcodeGen)) remains the
+source of truth. Only when you add/remove source files or change Info.plist,
+entitlements, or build settings, regenerate and commit the project:
 
 ```bash
 brew install xcodegen          # one-time
-xcodegen generate              # creates FWPlayerRemote.xcodeproj
-open FWPlayerRemote.xcodeproj
+xcodegen generate
 ```
 
 Select the **FWPlayerRemote** scheme and run on an iPhone or iPad (simulator or
