@@ -500,7 +500,7 @@ struct RemoteControlView: View {
                     .foregroundStyle(.tint)
             }
 
-            Text(session.currentTrack?.artist ?? " ")
+            Text(session.currentTrack?.artistLine ?? " ")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -607,11 +607,20 @@ struct RemoteControlView: View {
                                     .font(.caption)
                                     .frame(width: 20, alignment: .center)
 
-                                    Text(track.title)
-                                        .font(.subheadline)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(track.title)
+                                            .font(.subheadline)
+                                            .lineLimit(1)
+                                            .truncationMode(.tail)
+                                        if let line = track.artistLine {
+                                            Text(line)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .contentShape(Rectangle())
                             }
