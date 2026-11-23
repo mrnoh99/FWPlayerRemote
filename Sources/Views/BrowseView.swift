@@ -333,6 +333,8 @@ struct PlaylistBrowseView: View {
     var onLocate: ((RemoteQueueTrack) -> Void)?
 
     @State private var editMode: EditMode = .inactive
+    @State private var showingClearAsk = false
+    @State private var showingClearFinal = false
 
     /// The navigation route carries a snapshot of the playlist; resolve the live
     /// copy from the session so reorders (and other edits) reflect immediately
@@ -412,6 +414,36 @@ struct PlaylistBrowseView: View {
                 }
                 .disabled(playlist.tracks.isEmpty)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button(role: .destructive) {
+                        showingClearAsk = true
+                    } label: {
+                        Label("Delete All Tracks…", systemImage: "trash.slash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .disabled(playlist.tracks.isEmpty)
+            }
+        }
+        // Deleting every track asks twice: it can't be undone.
+        .alert("Delete all tracks?", isPresented: $showingClearAsk) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue", role: .destructive) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 400_000_000)     // let this alert close first
+                    showingClearFinal = true
+                }
+            }
+        } message: {
+            Text("All \(playlist.tracks.count) tracks will be removed from “\(playlist.name)”. The audio files themselves are not deleted.")
+        }
+        .alert("Are you sure?", isPresented: $showingClearFinal) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete All", role: .destructive) { session.clearPlaylist(playlist.id) }
+        } message: {
+            Text("This can't be undone.")
         }
     }
 

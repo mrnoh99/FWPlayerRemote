@@ -474,6 +474,9 @@ final class RemoteSession: ObservableObject {
     func deletePlaylist(_ playlistID: String) {
         send(.deletePlaylist(playlistID: playlistID))
     }
+    func clearPlaylist(_ playlistID: String) {
+        send(.clearPlaylist(playlistID: playlistID))
+    }
     func addToPlaylist(_ playlistID: String, tracks: [RemoteQueueTrack]) {
         send(.addToPlaylist(playlistID: playlistID, tracks: tracks))
     }
