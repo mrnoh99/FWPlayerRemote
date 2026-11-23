@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The SF Symbol shown at the leading edge of a track row: a speaker (or pause)
 /// when the row is the track the player currently has loaded, otherwise a
@@ -156,6 +157,7 @@ struct QueueBrowseView: View {
     var onLocate: ((RemoteTrack) -> Void)?
 
     @State private var editMode: EditMode = .inactive
+    @State private var draggingRow: Int?
 
     var body: some View {
         Group {
@@ -225,6 +227,10 @@ struct QueueBrowseView: View {
                         }
                         .listRowBackground(index == state.currentIndex
                                            ? Color.accentColor.opacity(0.15) : nil)
+                        // Touch and hold, then drag to reorder (no Edit mode needed).
+                        .reorderable(index: index, isEnabled: !editMode.isEditing, dragging: $draggingRow) { from, to in
+                            session.moveQueue(from: IndexSet(integer: from), to: to)
+                        }
                     }
                     .onMove { offsets, destination in
                         session.moveQueue(from: offsets, to: destination)
@@ -348,6 +354,7 @@ struct PlaylistBrowseView: View {
     var onLocate: ((RemoteQueueTrack) -> Void)?
 
     @State private var editMode: EditMode = .inactive
+    @State private var draggingPlaylistRow: Int?
     @State private var showingClearAsk = false
     @State private var showingClearFinal = false
 
@@ -398,6 +405,10 @@ struct PlaylistBrowseView: View {
                     .buttonStyle(.borderless)
                 }
                 .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
+                // Touch and hold, then drag to reorder (no Edit mode needed).
+                .reorderable(index: index, isEnabled: !editMode.isEditing, dragging: $draggingPlaylistRow) { from, to in
+                    session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: from), to: to)
+                }
                 .swipeActions(edge: .trailing) {
                     Button(role: .destructive) {
                         session.removePlaylistEntry(playlistID: playlist.id, at: IndexSet(integer: index))
@@ -908,5 +919,59 @@ struct SearchResultsView: View {
     private func queueTrack(_ item: RemoteFileItem, sourceID: String) -> RemoteQueueTrack {
         RemoteQueueTrack(sourceID: sourceID, path: item.path,
                          title: (item.name as NSString).deletingPathExtension)
+    }
+}
+
+// MARK: - Long-press reordering
+
+/// Touch and hold a list row, then drag it to reorder, without switching the list into Edit mode.
+/// `index` is the row's position in the underlying array and `move(from, toOffset)` moves one
+/// element with the meaning of `Array.move(fromOffsets:toOffset:)`. Stays out of the way while
+/// the list is in Edit mode (`isEnabled` false), where the handles do the job.
+private struct RowReorder: ViewModifier {
+    let index: Int
+    let isEnabled: Bool
+    @Binding var dragging: Int?
+    let move: (_ from: Int, _ toOffset: Int) -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .onDrag {
+                    dragging = index
+                    return NSItemProvider(object: "fwplayer-row-reorder" as NSString)
+                }
+                .onDrop(of: [UTType.text], delegate: ReorderDropDelegate(index: index, dragging: $dragging, move: move))
+        } else {
+            content
+        }
+    }
+}
+
+private struct ReorderDropDelegate: DropDelegate {
+    let index: Int
+    @Binding var dragging: Int?
+    let move: (_ from: Int, _ toOffset: Int) -> Void
+
+    func dropEntered(info: DropInfo) {
+        guard let from = dragging, from != index else { return }
+        move(from, from < index ? index + 1 : index)     // down: after this row; up: before it
+        dragging = index
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
+    }
+}
+
+extension View {
+    func reorderable(index: Int, isEnabled: Bool = true, dragging: Binding<Int?>,
+                     move: @escaping (_ from: Int, _ toOffset: Int) -> Void) -> some View {
+        modifier(RowReorder(index: index, isEnabled: isEnabled, dragging: dragging, move: move))
     }
 }

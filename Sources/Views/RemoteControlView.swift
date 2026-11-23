@@ -137,6 +137,10 @@ struct RemoteControlView: View {
                 .accessibilityHidden(selectedTab != 1)
         }
         .clipped()
+        // Opening Now Playing here opens it on the player too.
+        .onChange(of: selectedTab) { _, tab in
+            if tab == 0 { session.showNowPlaying() }
+        }
     }
 
     @ViewBuilder

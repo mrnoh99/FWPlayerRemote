@@ -413,6 +413,8 @@ final class RemoteSession: ObservableObject {
 
     func togglePlayPause() { send(.togglePlayPause) }
     func cancelLoading() { send(.cancelLoading) }
+    /// Tells the player the remote is showing Now Playing, so the player shows it too.
+    func showNowPlaying() { send(.showNowPlaying) }
     func next() { send(.next) }
     func previous() { send(.previous) }
     func seek(to time: TimeInterval) {
