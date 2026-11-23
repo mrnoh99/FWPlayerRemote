@@ -427,24 +427,10 @@ struct PlaylistBrowseView: View {
                 .disabled(playlist.tracks.isEmpty)
             }
         }
-        // Deleting every track asks twice: it can't be undone.
-        .alert("Delete all tracks?", isPresented: $showingClearAsk) {
-            Button("Cancel", role: .cancel) {}
-            Button("Continue", role: .destructive) {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 400_000_000)     // let this alert close first
-                    showingClearFinal = true
-                }
-            }
-        } message: {
-            Text("All \(playlist.tracks.count) tracks will be removed from “\(playlist.name)”. The audio files themselves are not deleted.")
-        }
-        .alert("Are you sure?", isPresented: $showingClearFinal) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete All", role: .destructive) { session.clearPlaylist(playlist.id) }
-        } message: {
-            Text("This can't be undone.")
-        }
+        .modifier(ClearAllConfirmation(
+            name: playlist.name, count: playlist.tracks.count,
+            isAsking: $showingClearAsk, isFinal: $showingClearFinal,
+            onConfirm: { session.clearPlaylist(playlist.id) }))
     }
 
     /// Per-track actions inside a playlist: mirrors the player's playlist menu
@@ -775,5 +761,40 @@ struct FolderBrowseView: View {
 
     private func trackTitle(_ item: RemoteFileItem) -> String {
         (item.name as NSString).deletingPathExtension
+    }
+}
+
+/// The two-step "delete all tracks" confirmation, in its own modifier so the view's modifier
+/// chain stays short enough for the compiler to type-check.
+private struct ClearAllConfirmation: ViewModifier {
+    let name: String
+    let count: Int
+    @Binding var isAsking: Bool
+    @Binding var isFinal: Bool
+    let onConfirm: () -> Void
+
+    private var message: String {
+        "All \(count) tracks will be removed from “\(name)”. The audio files themselves are not deleted."
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Delete all tracks?", isPresented: $isAsking) {
+                Button("Cancel", role: .cancel) {}
+                Button("Continue", role: .destructive) {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 400_000_000)     // let this alert close first
+                        isFinal = true
+                    }
+                }
+            } message: {
+                Text(message)
+            }
+            .alert("Are you sure?", isPresented: $isFinal) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete All", role: .destructive, action: onConfirm)
+            } message: {
+                Text("This can't be undone.")
+            }
     }
 }
