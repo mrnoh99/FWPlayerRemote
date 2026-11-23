@@ -424,10 +424,17 @@ struct PlaylistBrowseView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
+
+                    if !editMode.isEditing {
+                        Image(systemName: "line.3.horizontal")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 44)
+                            .contentShape(Rectangle())
+                            .reorderGrip(index: index, dragging: $draggingPlaylistRow, title: track.title)
+                    }
                 }
                 .listRowBackground(isCurrent ? Color.accentColor.opacity(0.15) : nil)
-                // Touch and hold, then drag to reorder (no Edit mode needed).
-                .reorderable(index: index, isEnabled: !editMode.isEditing, dragging: $draggingPlaylistRow) { from, to in
+                .reorderDropTarget(index: index, dragging: $draggingPlaylistRow) { from, to in
                     session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: from), to: to)
                 }
                 .swipeActions(edge: .trailing) {
