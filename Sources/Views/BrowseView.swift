@@ -189,6 +189,19 @@ struct QueueBrowseView: View {
                             }
                             .tint(.primary)
 
+                            VStack(spacing: 0) {
+                                Button { session.moveQueue(from: IndexSet(integer: index), to: index - 1) } label: {
+                                    Image(systemName: "chevron.up").frame(width: 32, height: 22).contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(index == 0)
+                                Button { session.moveQueue(from: IndexSet(integer: index), to: index + 2) } label: {
+                                    Image(systemName: "chevron.down").frame(width: 32, height: 22).contentShape(Rectangle())
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(index >= state.queue.count - 1)
+                            }
+
                             Menu {
                                 Button { session.play(index: index) } label: {
                                     Label("Play Now", systemImage: "play.fill")
