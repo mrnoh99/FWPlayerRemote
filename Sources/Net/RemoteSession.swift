@@ -405,6 +405,7 @@ final class RemoteSession: ObservableObject {
     private var pendingPIN: String?
 
     func togglePlayPause() { send(.togglePlayPause) }
+    func cancelLoading() { send(.cancelLoading) }
     func next() { send(.next) }
     func previous() { send(.previous) }
     func seek(to time: TimeInterval) {

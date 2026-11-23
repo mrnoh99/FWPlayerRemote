@@ -558,10 +558,18 @@ struct RemoteControlView: View {
                 Image(systemName: "backward.fill").font(.title)
             }
             if session.isLoading {
-                // Preparing the track — show a spinner so the press is visible.
-                ProgressView()
-                    .controlSize(.large)
+                // Preparing the track — a spinner you can tap to give up (e.g. the music
+                // server can't be reached from this network).
+                Button { Haptics.tap(); session.cancelLoading() } label: {
+                    ZStack {
+                        ProgressView().controlSize(.large)
+                        Image(systemName: "xmark").font(.system(size: 14, weight: .bold))
+                    }
                     .frame(width: 64, height: 64)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Cancel loading")
             } else {
                 Button { Haptics.impact(); session.togglePlayPause() } label: {
                     Image(systemName: session.isPlaying ? "pause.circle.fill" : "play.circle.fill")
