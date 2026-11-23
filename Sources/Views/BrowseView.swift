@@ -189,6 +189,14 @@ struct QueueBrowseView: View {
                             }
                             .tint(.primary)
 
+                            if !editMode.isEditing {
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 30, height: 44)
+                                    .contentShape(Rectangle())
+                                    .reorderGrip(index: index, dragging: $draggingRow, title: track.title)
+                            }
+
                             VStack(spacing: 0) {
                                 Button { session.moveQueue(from: IndexSet(integer: index), to: index - 1) } label: {
                                     Image(systemName: "chevron.up").frame(width: 32, height: 22).contentShape(Rectangle())
@@ -241,7 +249,7 @@ struct QueueBrowseView: View {
                         .listRowBackground(index == state.currentIndex
                                            ? Color.accentColor.opacity(0.15) : nil)
                         // Touch and hold, then drag to reorder (no Edit mode needed).
-                        .reorderable(index: index, isEnabled: !editMode.isEditing, dragging: $draggingRow) { from, to in
+                        .reorderDropTarget(index: index, dragging: $draggingRow) { from, to in
                             session.moveQueue(from: IndexSet(integer: from), to: to)
                         }
                     }
@@ -986,5 +994,42 @@ extension View {
     func reorderable(index: Int, isEnabled: Bool = true, dragging: Binding<Int?>,
                      move: @escaping (_ from: Int, _ toOffset: Int) -> Void) -> some View {
         modifier(RowReorder(index: index, isEnabled: isEnabled, dragging: dragging, move: move))
+    }
+}
+
+private struct ReorderGrip: ViewModifier {
+    let index: Int
+    @Binding var dragging: Int?
+    let title: String
+
+    func body(content: Content) -> some View {
+        content.onDrag {
+            dragging = index
+            return NSItemProvider(object: "fwplayer-row-reorder" as NSString)
+        } preview: {
+            Text(title).padding(8).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+private struct ReorderDropTarget: ViewModifier {
+    let index: Int
+    @Binding var dragging: Int?
+    let move: (_ from: Int, _ toOffset: Int) -> Void
+
+    func body(content: Content) -> some View {
+        content.onDrop(of: [UTType.text],
+                       delegate: ReorderDropDelegate(index: index, dragging: $dragging, move: move))
+    }
+}
+
+extension View {
+    func reorderGrip(index: Int, dragging: Binding<Int?>, title: String) -> some View {
+        modifier(ReorderGrip(index: index, dragging: dragging, title: title))
+    }
+
+    func reorderDropTarget(index: Int, dragging: Binding<Int?>,
+                           move: @escaping (_ from: Int, _ toOffset: Int) -> Void) -> some View {
+        modifier(ReorderDropTarget(index: index, dragging: dragging, move: move))
     }
 }
