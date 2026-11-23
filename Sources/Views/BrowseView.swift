@@ -40,7 +40,22 @@ struct LibraryView: View {
     @ObservedObject var session: RemoteSession
     var onOpen: (LibraryRoute) -> Void
 
+    @State private var query = ""
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
+        Group {
+            if trimmedQuery.isEmpty {
+                libraryList
+            } else {
+                SearchResultsView(session: session, query: trimmedQuery, onOpen: onOpen)
+            }
+        }
+        .searchable(text: $query, prompt: "Search folders and files")
+        .onChange(of: query) { _, new in session.search(new) }
+    }
+
+    private var libraryList: some View {
         Group {
             if let library = session.library {
                 List {
@@ -796,5 +811,102 @@ private struct ClearAllConfirmation: ViewModifier {
             } message: {
                 Text("This can't be undone.")
             }
+    }
+}
+
+/// Results of a library search on the player: folders and files whose names match, grouped by
+/// source. Tap a folder to open it, a file to play it; the ••• menu has the other actions.
+struct SearchResultsView: View {
+    @ObservedObject var session: RemoteSession
+    let query: String
+    var onOpen: (LibraryRoute) -> Void
+
+    /// Only the answer to the query being shown (a late answer to an earlier one is ignored).
+    private var results: RemoteSearchResults? {
+        guard let results = session.searchResults, results.query == query else { return nil }
+        return results
+    }
+
+    var body: some View {
+        Group {
+            if let results {
+                if results.groups.isEmpty {
+                    ContentUnavailableView.search(text: query)
+                } else {
+                    resultsList(results)
+                }
+            } else {
+                ProgressView("Searching…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private func resultsList(_ results: RemoteSearchResults) -> some View {
+        List {
+            ForEach(results.groups) { group in
+                Section(group.sourceName) {
+                    ForEach(group.items) { item in
+                        row(item, sourceID: group.sourceID)
+                    }
+                }
+            }
+        }
+    }
+
+    private func row(_ item: RemoteFileItem, sourceID: String) -> some View {
+        let isFolder = item.kind == .directory
+        let title = isFolder ? item.name : (item.name as NSString).deletingPathExtension
+        let parent = (item.path as NSString).deletingLastPathComponent
+        return Button {
+            if isFolder {
+                onOpen(.folder(RemoteFolderRoute(sourceID: sourceID, path: item.path, title: item.name)))
+            } else {
+                session.setQueue([queueTrack(item, sourceID: sourceID)], startAt: 0)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isFolder ? "folder.fill" : "music.note")
+                    .foregroundStyle(isFolder ? Color.accentColor : Color.secondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).lineLimit(1)
+                    if !parent.isEmpty {
+                        Text(parent)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .tint(.primary)
+        .contextMenu {
+            if isFolder {
+                Button {
+                    session.playFolder(sourceID: sourceID, path: item.path)
+                } label: {
+                    Label("Play Folder", systemImage: "play.fill")
+                }
+            } else {
+                let track = queueTrack(item, sourceID: sourceID)
+                Button { session.setQueue([track], startAt: 0) } label: {
+                    Label("Play Now", systemImage: "play.fill")
+                }
+                Button { session.playNext([track]) } label: {
+                    Label("Play Next", systemImage: "text.insert")
+                }
+                Button { session.enqueue([track]) } label: {
+                    Label("Add to Queue", systemImage: "text.badge.plus")
+                }
+            }
+        }
+    }
+
+    private func queueTrack(_ item: RemoteFileItem, sourceID: String) -> RemoteQueueTrack {
+        RemoteQueueTrack(sourceID: sourceID, path: item.path,
+                         title: (item.name as NSString).deletingPathExtension)
     }
 }

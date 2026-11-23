@@ -42,6 +42,9 @@ final class RemoteSession: ObservableObject {
     /// Folder listings received so far, keyed by source+path. Lets each browse
     /// screen show its own folder while we navigate a stack.
     @Published private(set) var listings: [String: RemoteListing] = [:]
+    /// The latest answer to a library search (see `search`).
+    @Published private(set) var searchResults: RemoteSearchResults?
+    private var searchTask: Task<Void, Never>?
     /// Album covers pushed by the player, keyed by track id.
     @Published private(set) var artworkByTrack: [String: UIImage] = [:]
     /// Rich track details (catalog metadata + lyrics) pushed by the player,
@@ -291,6 +294,7 @@ final class RemoteSession: ObservableObject {
         state = nil
         library = nil
         listings = [:]
+        searchResults = nil
         artworkByTrack = [:]
         catalogByTrack = [:]
         isScrubbing = false
@@ -374,6 +378,9 @@ final class RemoteSession: ObservableObject {
         case .listing(let listing):
             guard status == .connected else { return }
             listings[Self.key(listing.sourceID, listing.path)] = listing
+        case .searchResults(let results):
+            guard status == .connected else { return }
+            searchResults = results
         case .artwork(let art):
             guard status == .connected,
                   let data = Data(base64Encoded: art.jpegBase64),
@@ -456,6 +463,22 @@ final class RemoteSession: ObservableObject {
     // MARK: - Library & queue construction
 
     func requestLibrary() { send(.requestLibrary) }
+
+    /// Searches the player's library by folder and file name. Typing is debounced: the command
+    /// goes out a moment after the last keystroke; a blank query clears the results.
+    func search(_ query: String) {
+        searchTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            searchResults = nil
+            return
+        }
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else { return }
+            self?.send(.search(query: trimmed))
+        }
+    }
     func browse(sourceID: String, path: String) {
         listings.removeValue(forKey: Self.key(sourceID, path))
         send(.browse(sourceID: sourceID, path: path))
