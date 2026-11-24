@@ -163,7 +163,7 @@ struct QueueBrowseView: View {
         Group {
             if let state = session.state, !state.queue.isEmpty {
                 List {
-                    ForEach(Array(state.queue.enumerated()), id: \.element.id) { index, track in
+                    ForEach(Array(state.queue.enumerated()), id: \.offset) { index, track in
                         HStack(spacing: 8) {
                             if let qt = queueTrack(track) {
                                 FavoriteStarButton(session: session, track: qt)
