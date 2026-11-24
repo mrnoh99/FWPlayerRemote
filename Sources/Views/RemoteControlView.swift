@@ -34,6 +34,9 @@ struct RemoteControlView: View {
                     .padding(.bottom, 8)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
+                ConnectionBanner(session: session)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if let note = session.protocolNote {
                     Label(note, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -703,5 +706,57 @@ struct RemoteControlView: View {
         guard time.isFinite, time >= 0 else { return "0:00" }
         let total = Int(time)
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+
+/// A thin bar under the navigation title while the link to the player is down, so every tab
+/// (not just Now Playing) shows that the screen may be out of date and can retry.
+private struct ConnectionBanner: View {
+    @ObservedObject var session: RemoteSession
+
+    var body: some View {
+        if let text = message {
+            HStack(spacing: 8) {
+                if isRetrying {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "wifi.slash")
+                }
+                Text(text).font(.caption)
+                Spacer()
+                if !isRetrying {
+                    Button("Reconnect") { session.reconnect() }
+                        .font(.caption.weight(.semibold))
+                        .buttonStyle(.borderless)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+        }
+    }
+
+    private var isRetrying: Bool {
+        switch session.status {
+        case .connecting, .authenticating, .awaitingPIN: return true
+        case .disconnected: return session.hasSavedPIN
+        case .connected, .failed: return false
+        }
+    }
+
+    private var message: String? {
+        switch session.status {
+        case .connected: return nil
+        case .awaitingPIN where session.needsPINEntry: return nil   // the PIN screen says it
+        case .connecting, .authenticating, .awaitingPIN:
+            return session.hasSavedPIN ? "Reconnecting to \(session.playerName)…" : "Connecting to \(session.playerName)…"
+        case .disconnected:
+            return session.hasSavedPIN ? "Reconnecting to \(session.playerName)…" : "Not connected to \(session.playerName)"
+        case .failed:
+            return "Can't reach \(session.playerName)"
+        }
     }
 }

@@ -426,6 +426,12 @@ struct PlaylistBrowseView: View {
                     .buttonStyle(.borderless)
 
                     if !editMode.isEditing {
+                        MoveUpDownButtons(
+                            canMoveUp: index > 0,
+                            canMoveDown: index < playlist.tracks.count - 1,
+                            moveUp: { session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: index), to: index - 1) },
+                            moveDown: { session.movePlaylistEntry(playlistID: playlist.id, from: IndexSet(integer: index), to: index + 2) }
+                        )
                         Image(systemName: "line.3.horizontal")
                             .foregroundStyle(.secondary)
                             .frame(width: 30, height: 44)
@@ -1038,5 +1044,27 @@ extension View {
     func reorderDropTarget(index: Int, dragging: Binding<Int?>,
                            move: @escaping (_ from: Int, _ toOffset: Int) -> Void) -> some View {
         modifier(ReorderDropTarget(index: index, dragging: dragging, move: move))
+    }
+}
+
+/// A compact ▲/▼ pair for moving a row one place; disabled at the ends.
+private struct MoveUpDownButtons: View {
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let moveUp: () -> Void
+    let moveDown: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: moveUp) {
+                Image(systemName: "chevron.up").frame(width: 32, height: 22).contentShape(Rectangle())
+            }
+            .disabled(!canMoveUp)
+            Button(action: moveDown) {
+                Image(systemName: "chevron.down").frame(width: 32, height: 22).contentShape(Rectangle())
+            }
+            .disabled(!canMoveDown)
+        }
+        .buttonStyle(.borderless)
     }
 }
