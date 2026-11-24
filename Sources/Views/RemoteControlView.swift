@@ -256,6 +256,7 @@ struct RemoteControlView: View {
                 playlist: playlist,
                 onLocate: { locate($0) }
             )
+            .id(playlist.id)   // each playlist starts out of Edit mode
         }
     }
 
