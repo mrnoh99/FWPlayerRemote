@@ -14,6 +14,7 @@ struct RemoteControlView: View {
     @State private var locateFilePath: String?
     /// Whether the now-playing details section is expanded.
     @State private var detailsExpanded = false
+    @State private var showingLyrics = false
     /// Text typed into the new/rename playlist alert.
     @State private var playlistPromptName = ""
 
@@ -329,6 +330,32 @@ struct RemoteControlView: View {
             volumeControl
         }
         .padding()
+        .sheet(isPresented: $showingLyrics) {
+            LyricsSheet(session: session)
+        }
+    }
+
+    private var currentLyrics: String? {
+        guard let lyrics = session.currentCatalogInfo?.lyrics,
+              !lyrics.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return lyrics
+    }
+
+    /// Dimmed until the player has sent lyrics for the current track (they arrive
+    /// a moment after it starts, with the other details).
+    private var lyricsButton: some View {
+        Button {
+            Haptics.tap()
+            showingLyrics = true
+        } label: {
+            Image(systemName: "quote.bubble")
+                .font(.title3)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(currentLyrics == nil)
+        .accessibilityLabel(currentLyrics == nil ? "No lyrics for this track" : "Lyrics")
     }
 
     private var volumeControl: some View {
@@ -520,7 +547,12 @@ struct RemoteControlView: View {
                     .lineLimit(1)
             }
         }
+        // Keeps centred text clear of the lyrics button.
+        .padding(.horizontal, 40)
         .frame(maxWidth: .infinity)
+        .overlay(alignment: .topTrailing) {
+            if session.currentTrack != nil { lyricsButton }
+        }
         .padding(.bottom, 4)
     }
 
@@ -710,6 +742,55 @@ struct RemoteControlView: View {
     }
 }
 
+
+/// The current track's lyrics in a sheet. Follows the session, so it shows the new
+/// track's lyrics (or says there are none) if playback moves on while it's open.
+private struct LyricsSheet: View {
+    @ObservedObject var session: RemoteSession
+    @Environment(\.dismiss) private var dismiss
+
+    private var lyrics: String? {
+        guard let text = session.currentCatalogInfo?.lyrics,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return text
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let lyrics {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let artist = session.currentTrack?.artistLine {
+                                Text(artist)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(lyrics)
+                                .font(.body)
+                                .lineSpacing(4)
+                                .textSelection(.enabled)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                    }
+                } else {
+                    ContentUnavailableView("No Lyrics", systemImage: "quote.bubble",
+                                           description: Text("The player has no lyrics for this track."))
+                }
+            }
+            .navigationTitle(session.currentTrack?.title ?? "Lyrics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
 
 /// A thin bar under the navigation title while the link to the player is down, so every tab
 /// (not just Now Playing) shows that the screen may be out of date and can retry.
