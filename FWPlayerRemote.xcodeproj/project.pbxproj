@@ -19,6 +19,10 @@
 			isa = PBXBuildFile;
 			fileRef = EAB0D06D5BC04F8E83BF6583 /* PrivacyInfo.xcprivacy */;
 		};
+		C32B1061BB5A4337BAA2AD7D /* Localizable.xcstrings in Resources */ = {
+			isa = PBXBuildFile;
+			fileRef = 3AAC9EB6EFAA4562859C1B99 /* Localizable.xcstrings */;
+		};
 		3EFF15B426EB4132893B0E71 /* Assets.xcassets in Resources */ = {
 			isa = PBXBuildFile;
 			fileRef = 73335A79405747C08C834B03 /* Assets.xcassets */;
@@ -169,6 +173,12 @@
 			path = PrivacyInfo.xcprivacy;
 			sourceTree = "<group>";
 		};
+		3AAC9EB6EFAA4562859C1B99 /* Localizable.xcstrings */ = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.json.xcstrings;
+			path = Localizable.xcstrings;
+			sourceTree = "<group>";
+		};
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -262,6 +272,7 @@
 			children = (
 				73335A79405747C08C834B03 /* Assets.xcassets */,
 				EAB0D06D5BC04F8E83BF6583 /* PrivacyInfo.xcprivacy */,
+				3AAC9EB6EFAA4562859C1B99 /* Localizable.xcstrings */,
 			);
 			name = Resources;
 			path = Resources;
@@ -318,6 +329,7 @@
 			knownRegions = (
 				en,
 				Base,
+				ko,
 			);
 			mainGroup = 3B8B836F47274534AA1032E0;
 			productRefGroup = 5CF400EE5BE84DEAB16D3431 /* Products */;
@@ -336,6 +348,7 @@
 			files = (
 				3EFF15B426EB4132893B0E71 /* Assets.xcassets in Resources */,
 				2AA82E0A44264FEA8950B468 /* PrivacyInfo.xcprivacy in Resources */,
+				C32B1061BB5A4337BAA2AD7D /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
