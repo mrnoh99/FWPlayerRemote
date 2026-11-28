@@ -759,7 +759,15 @@ private struct LyricsSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let lyrics {
+                if let lines = session.currentCatalogInfo?.syncedLyrics, !lines.isEmpty {
+                    // Follows the player's clock between state updates, like the progress bar.
+                    TimelineView(.animation(minimumInterval: 0.25, paused: !session.isPlaying)) { timeline in
+                        SyncedLyricsList(lines: lines, time: session.interpolatedTime(at: timeline.date)) { time in
+                            Haptics.tap()
+                            session.seek(to: time)
+                        }
+                    }
+                } else if let lyrics {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             if let artist = session.currentTrack?.artistLine {
@@ -790,6 +798,41 @@ private struct LyricsSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+/// Lyrics that follow playback: the line being sung is highlighted and kept in view,
+/// and tapping a line plays from there.
+private struct SyncedLyricsList: View {
+    let lines: [RemoteLyricLine]
+    let time: TimeInterval
+    let onSeek: (TimeInterval) -> Void
+
+    var body: some View {
+        let current = lines.lineIndex(at: time)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        Text(line.text.isEmpty ? "♪" : line.text)
+                            .font(index == current ? .title3.weight(.semibold) : .title3)
+                            .foregroundStyle(index == current ? Color.primary : Color.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onSeek(line.time) }
+                            .id(index)
+                    }
+                }
+                .padding()
+            }
+            .onChange(of: current) { _, new in
+                guard let new else { return }
+                withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(new, anchor: .center) }
+            }
+            .onAppear {
+                if let current { proxy.scrollTo(current, anchor: .center) }
+            }
+        }
     }
 }
 
