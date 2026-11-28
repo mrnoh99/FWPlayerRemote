@@ -471,6 +471,7 @@ struct RemoteControlView: View {
     // MARK: - PIN pairing
 
     @State private var pin = ""
+    private static let pinLength = 4
     @FocusState private var pinFocused: Bool
 
     private var pinEntry: some View {
@@ -481,12 +482,12 @@ struct RemoteControlView: View {
 
             Text("Enter PIN")
                 .font(.title2.weight(.semibold))
-            Text("Enter the PIN shown on \(session.playerName).")
+            Text("Enter the 4-digit PIN shown on \(session.playerName) under Remote. You only need to do this once.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            TextField("0", text: $pin)
+            TextField("0000", text: $pin)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
                 .multilineTextAlignment(.center)
@@ -494,7 +495,7 @@ struct RemoteControlView: View {
                 .focused($pinFocused)
                 .onChange(of: pin) { _, new in
                     let digits = new.filter(\.isNumber)
-                    pin = String(digits.prefix(1))
+                    pin = String(digits.prefix(Self.pinLength))
                 }
 
             if let authError = session.authError {
@@ -515,7 +516,7 @@ struct RemoteControlView: View {
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(pin.count != 1 || session.status == .authenticating)
+            .disabled(pin.count != Self.pinLength || session.status == .authenticating)
         }
         .padding(.horizontal, 32)
         .onAppear { pinFocused = true }

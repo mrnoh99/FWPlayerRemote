@@ -109,8 +109,8 @@ final class RemoteSession: ObservableObject {
         self.endpoint = player.endpoint
     }
 
-    /// PIN-less auto-connect: every discovered player connects (and reconnects)
-    /// automatically, so the connection/reconnection logic always proceeds.
+    /// Every discovered player connects (and reconnects) automatically. A player that
+    /// requires a PIN asks for it once; the PIN that worked is saved and sent from then on.
     var hasSavedPIN: Bool { true }
 
     // MARK: - Lifecycle
