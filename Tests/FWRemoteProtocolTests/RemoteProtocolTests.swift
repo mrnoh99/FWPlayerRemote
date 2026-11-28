@@ -59,6 +59,9 @@ final class RemoteProtocolTests: XCTestCase {
             .state(state()),
             .catalogInfo(RemoteCatalogInfo(trackID: "t", albumTitle: "Kind of Blue", lyrics: "words",
                                            source: "file tags")),
+            .catalogInfo(RemoteCatalogInfo(trackID: "t", lyrics: "One\nTwo", source: "LRCLIB",
+                                           syncedLyrics: [RemoteLyricLine(time: 1, text: "One"),
+                                                          RemoteLyricLine(time: 2.5, text: "Two")])),
         ]
         for message in messages {
             let data = try encoder.encode(message)
@@ -91,6 +94,42 @@ final class RemoteProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.title, "Blue in Green")
         XCTAssertNil(decoded.sourceID)
         XCTAssertNil(decoded.composer)
+    }
+
+    /// An older player leaves out the state fields added later; they take their defaults.
+    func testStateFromAnOlderPlayerUsesDefaults() throws {
+        let data = Data(#"""
+        {"deviceName":"Old iPad","isPlaying":false,"isLoading":false,"currentTime":0,"duration":0,"queue":[]}
+        """#.utf8)
+        let decoded = try decoder.decode(PlaybackState.self, from: data)
+        XCTAssertEqual(decoded.deviceName, "Old iPad")
+        XCTAssertEqual(decoded.history, [])
+        XCTAssertFalse(decoded.isShuffled)
+        XCTAssertEqual(decoded.repeatMode, 0)
+        XCTAssertEqual(decoded.volume, 1.0)
+        XCTAssertEqual(decoded.protocolVersion, 0)
+        XCTAssertNil(decoded.currentIndex)
+    }
+
+    func testStateStillRequiresTheCoreFields() {
+        let data = Data(#"{"isPlaying":false}"#.utf8)
+        XCTAssertThrowsError(try decoder.decode(PlaybackState.self, from: data))
+    }
+
+    /// Catalog info from a player without synced lyrics.
+    func testSyncedLyricsAreOptional() throws {
+        let data = Data(#"{"trackID":"t","lyrics":"words"}"#.utf8)
+        XCTAssertNil(try decoder.decode(RemoteCatalogInfo.self, from: data).syncedLyrics)
+    }
+
+    func testLineIndexFollowsTime() {
+        let lines = [RemoteLyricLine(time: 5, text: "a"), RemoteLyricLine(time: 10, text: "b"),
+                     RemoteLyricLine(time: 20, text: "c")]
+        XCTAssertNil(lines.lineIndex(at: 4.9))
+        XCTAssertEqual(lines.lineIndex(at: 5), 0)
+        XCTAssertEqual(lines.lineIndex(at: 19.9), 1)
+        XCTAssertEqual(lines.lineIndex(at: 300), 2)
+        XCTAssertNil([RemoteLyricLine]().lineIndex(at: 1))
     }
 
     func testArtistLineJoinsComposerWorkAndArtist() {
