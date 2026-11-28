@@ -142,4 +142,32 @@ final class RemoteProtocolTests: XCTestCase {
         XCTAssertEqual(track.artistLine, "Beethoven · Symphony No. 5 · Kleiber")
         XCTAssertNil(RemoteTrack(id: "b", title: "x").artistLine)
     }
+
+    // MARK: Framing
+
+    private func frame(length: Int, body: Int? = nil) -> Data {
+        var data = Data([UInt8(length >> 24 & 0xFF), UInt8(length >> 16 & 0xFF),
+                         UInt8(length >> 8 & 0xFF), UInt8(length & 0xFF)])
+        data.append(Data(repeating: 0x20, count: body ?? length))
+        return data
+    }
+
+    func testFrameStatusWaitsForAWholeFrame() {
+        XCTAssertEqual(RemoteLink.frameStatus(of: Data([0, 0]), maxLength: 100), .incomplete)
+        XCTAssertEqual(RemoteLink.frameStatus(of: frame(length: 10, body: 9), maxLength: 100), .incomplete)
+        XCTAssertEqual(RemoteLink.frameStatus(of: frame(length: 10), maxLength: 100), .frame(length: 10))
+        XCTAssertEqual(RemoteLink.frameStatus(of: frame(length: 0), maxLength: 100), .frame(length: 0))
+    }
+
+    func testFrameStatusRefusesOversizedFramesBeforeTheyArrive() {
+        // A peer claiming a 4 GB frame is refused from the header alone, not buffered.
+        XCTAssertEqual(RemoteLink.frameStatus(of: Data([0xFF, 0xFF, 0xFF, 0xFF]), maxLength: 64 << 20), .tooLarge)
+        XCTAssertEqual(RemoteLink.frameStatus(of: frame(length: 101, body: 0), maxLength: 100), .tooLarge)
+        XCTAssertEqual(RemoteLink.frameStatus(of: frame(length: 100), maxLength: 100), .frame(length: 100))
+    }
+
+    func testFrameStatusReadsABufferThatDoesNotStartAtZero() {
+        let buffer = (Data([9, 9]) + frame(length: 3)).dropFirst(2)
+        XCTAssertEqual(RemoteLink.frameStatus(of: buffer, maxLength: 100), .frame(length: 3))
+    }
 }
