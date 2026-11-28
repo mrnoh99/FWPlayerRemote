@@ -438,7 +438,7 @@ struct RemoteControlView: View {
     }
 
     @ViewBuilder
-    private func detailRow(_ label: String, _ value: String?) -> some View {
+    private func detailRow(_ label: LocalizedStringKey, _ value: String?) -> some View {
         if let value, !value.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(label)
@@ -453,7 +453,7 @@ struct RemoteControlView: View {
     }
 
     @ViewBuilder
-    private func detailParagraph(_ label: String, _ value: String?) -> some View {
+    private func detailParagraph(_ label: LocalizedStringKey, _ value: String?) -> some View {
         if let value, !value.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 Text(label)
@@ -830,7 +830,7 @@ private struct ConnectionBanner: View {
         }
     }
 
-    private var message: String? {
+    private var message: LocalizedStringKey? {
         switch session.status {
         case .connected: return nil
         case .awaitingPIN where session.needsPINEntry: return nil   // the PIN screen says it
