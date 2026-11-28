@@ -59,7 +59,7 @@ allow it so discovery works.
 
 ```
 scripts/bump-build.sh       Bumps the build number in project.yml and the Xcode project
-project.yml                 XcodeGen project definition (single iOS app target)
+project.yml                 Settings summary (XcodeGen format; not used to build)
 Support/
   FWPlayerRemote.entitlements  Network client entitlement
 Sources/
@@ -79,16 +79,10 @@ and build with no extra tooling (see [BUILD.md](BUILD.md)):
 open FWPlayerRemote.xcodeproj
 ```
 
-`project.yml` ([XcodeGen](https://github.com/yonaskolb/XcodeGen)) remains the
-source of truth. Only when you add/remove source files or change Info.plist,
-entitlements, or build settings, regenerate and commit the project:
-
-```bash
-brew install xcodegen          # one-time
-xcodegen generate
-```
+The committed Xcode project is what the app is built from; add new files to it in
+Xcode and commit `project.pbxproj`. `project.yml` is only a summary of the
+settings — don't regenerate the project from it (see [BUILD.md](BUILD.md)).
 
 Select the **FWPlayerRemote** scheme and run on an iPhone or iPad (simulator or
-device). Set your signing team in Xcode (or `DEVELOPMENT_TEAM` in `project.yml`)
-before running on a device. Make sure FWPlayer is open on the device you want to
+device). Set your signing team in Xcode before running on a device. Make sure FWPlayer is open on the device you want to
 control and connected to the same network.
