@@ -87,7 +87,8 @@ Capture the device list and a now-playing/control screen:
 - **Sign-in**: none.
 - **Notes for reviewer**: "FWPlayer Remote discovers and controls the FWPlayer
   app over the local network (Bonjour `_fwplayer._tcp`). **To review it you need
-  FWPlayer running on a Mac/iPad/iPhone on the same Wi‑Fi network.** If a test
+  FWPlayer running on a Mac/iPad/iPhone on the same Wi‑Fi network**, then pair
+  once with the 4-digit PIN FWPlayer shows in its sidebar under Remote. If a test
   device isn't available, please refer to the attached demo video. The app
   collects no data and requires no account."
 - Consider attaching a short **demo video** (App Review often can't reproduce a
