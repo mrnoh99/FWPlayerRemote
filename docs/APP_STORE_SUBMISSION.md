@@ -1,5 +1,9 @@
 # FWPlayer Remote — App Store submission guide
 
+> **Not in use:** FWPlayer Remote is for personal use and isn't submitted to the
+> App Store. This guide is kept for reference only; its `xcodegen` steps are out
+> of date (see `BUILD.md`).
+
 Checklist for shipping **FWPlayer Remote** (iPhone / iPad companion that
 controls FWPlayer over the local network) to the App Store. Repo-side items are
 done; the rest is portal/Xcode work.
